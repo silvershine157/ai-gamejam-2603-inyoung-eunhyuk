@@ -1,0 +1,15 @@
+{
+  "name": "iycho_v16-advanced-merge-smoke",
+  "description": "Select the oval map, wait through countdown, collide with a static obstacle, then recover while advanced rivals are active.",
+  "steps": [
+    { "type": "wait_for_selector", "selector": "#map-menu .map-option[data-map='oval']" },
+    { "type": "click", "selector": "#map-menu .map-option[data-map='oval']", "expectNavigation": true, "navigationWaitMs": 1000 },
+    { "type": "wait", "ms": 3600, "label": "countdown" },
+    { "type": "hold", "keys": ["KeyX"], "ms": 650, "label": "grow for obstacle test" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 2100, "label": "launch into static obstacle" },
+    { "type": "hold", "keys": ["KeyZ"], "ms": 550, "label": "shrink after impact" },
+    { "type": "tap", "key": "Space", "ms": 300, "label": "fire" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 1100, "label": "recover" },
+    { "type": "wait", "ms": 900, "label": "cooldown" }
+  ]
+}
