@@ -1016,6 +1016,8 @@
         maxHp: Math.round(100 * sizeScale),
         baseAccel: accel,
         hpBar: makeHPBar(),
+        startT, laneOffset,
+        startQuat: group.quaternion.clone(),
       };
     }
 
@@ -1058,11 +1060,15 @@
         const totalDmg = relVn * relVn * 1.2;
         if (csA.hp !== undefined) {
           csA.hp = Math.max(0, csA.hp - totalDmg * massB / totalMass);
-          if (csA.baseAccel !== undefined) csA.accel = csA.baseAccel * (0.3 + 0.7 * csA.hp / csA.maxHp);
+          csA.speed *= 0.5;
+          if (csA.hp <= 0 && csA.startT !== undefined) { respawnRival(csA); }
+          else if (csA.baseAccel !== undefined) csA.accel = csA.baseAccel * (0.3 + 0.7 * csA.hp / csA.maxHp);
         }
         if (csB.hp !== undefined) {
           csB.hp = Math.max(0, csB.hp - totalDmg * massA / totalMass);
-          if (csB.baseAccel !== undefined) csB.accel = csB.baseAccel * (0.3 + 0.7 * csB.hp / csB.maxHp);
+          csB.speed *= 0.5;
+          if (csB.hp <= 0 && csB.startT !== undefined) { respawnRival(csB); }
+          else if (csB.baseAccel !== undefined) csB.accel = csB.baseAccel * (0.3 + 0.7 * csB.hp / csB.maxHp);
         }
         playCollision(Math.abs(relVn));
       }
@@ -1072,6 +1078,18 @@
       csA.impactVelocity.z += (j / massA) * nz;
       csB.impactVelocity.x -= (j / massB) * nx;
       csB.impactVelocity.z -= (j / massB) * nz;
+    }
+
+    function respawnRival(rival) {
+      const frame = road.getFrameAt(rival.startT);
+      rival.group.position.copy(frame.point).addScaledVector(frame.right, rival.laneOffset).setY(0);
+      rival.group.quaternion.copy(rival.startQuat);
+      rival.speed = 0;
+      rival.impactVelocity.set(0, 0, 0);
+      rival.hp = rival.maxHp;
+      rival.accel = rival.baseAccel;
+      rival.trackT = rival.startT;
+      rival.prevFinishDot = null;
     }
 
     function updateRival(rival, dt) {
@@ -2016,7 +2034,12 @@
             if (Math.sqrt(rdx * rdx + rdz * rdz) < rival.radius + P.projRadius) {
               const dmg = 25 * (currentStats().atk / attrLerp(P.atkTiny, P.atkGiant, baseT()));
               rival.hp = Math.max(0, rival.hp - dmg);
-              rival.accel = rival.baseAccel * (0.3 + 0.7 * rival.hp / rival.maxHp);
+              rival.speed *= 0.2;  // speed cut on hit
+              if (rival.hp <= 0) {
+                respawnRival(rival);
+              } else {
+                rival.accel = rival.baseAccel * (0.3 + 0.7 * rival.hp / rival.maxHp);
+              }
               spawnHitEffect(p.mesh.position.clone());
               playHit();
               hitTarget = true;
