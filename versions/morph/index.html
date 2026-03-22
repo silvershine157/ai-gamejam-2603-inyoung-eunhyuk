@@ -29,6 +29,34 @@
     .bar-bg  { flex: 1; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
     .bar-fill { height: 100%; border-radius: 3px; transition: width 0.1s, background 0.1s; }
 
+    /* ── Ammo display ─────────────────────────────────────── */
+    #ammo-row {
+      display: flex; align-items: center; gap: 6px;
+      line-height: 1;
+    }
+    #ammo-bullets { display: flex; gap: 4px; }
+    .bullet {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #ffdd44;
+      box-shadow: 0 0 5px #ffaa00;
+      transition: background 0.1s, box-shadow 0.1s;
+    }
+    .bullet.empty {
+      background: rgba(255,255,255,0.12);
+      box-shadow: none;
+    }
+    #ammo-charge-bg {
+      flex: 1; height: 3px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px; overflow: hidden;
+    }
+    #ammo-charge-fill {
+      height: 100%; border-radius: 2px;
+      background: #ffdd44;
+      width: 0%;
+      transition: width 0.05s;
+    }
+
     /* ── Size label ───────────────────────────────────────── */
     #size-indicator {
       position: absolute;
@@ -179,6 +207,11 @@
       <span class="val" id="val-turn">100</span>
     </div>
     <div><span class="label">SCORE  </span><span class="val" id="score">0</span><span class="label" id="score-total"></span></div>
+    <div id="ammo-row">
+      <span class="label" style="width:42px;flex-shrink:0">AMMO</span>
+      <div id="ammo-bullets"></div>
+      <div id="ammo-charge-bg"><div id="ammo-charge-fill"></div></div>
+    </div>
     <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
     <div><span class="label">X/Z   </span>grow / shrink</div>
     <div><span class="label">WASD  </span>drive</div>
@@ -231,6 +264,8 @@
       projSpeed    : 50,
       projRadius   : 0.22,
       projLifetime : 5.0,
+      ammoMax      : 5,
+      ammoRecharge : 3.0,   // seconds per bullet
     };
 
     // Live params object — modified by control panel sliders
@@ -302,6 +337,8 @@
           ['Proj Speed',    'projSpeed',    10, 120, 1   ],
           ['Proj Radius',   'projRadius',   0.05, 1.0, 0.01],
           ['Proj Lifetime', 'projLifetime',  1,  12, 0.5 ],
+          ['Ammo Max',      'ammoMax',       1,  10, 1   ],
+          ['Recharge (s)',  'ammoRecharge',  0.5, 10, 0.5],
         ]
       },
     ];
@@ -774,6 +811,32 @@
 
     const projMat = new THREE.MeshLambertMaterial({ color: 0xffdd44, emissive: 0xaa7700 });
 
+    // ── Ammo state ────────────────────────────────────────────
+    let ammo        = 5;      // current integer ammo count
+    let ammoCharge  = 0.0;    // 0→1 progress toward next bullet
+
+    // Build bullet dot elements (max 10; we show/hide based on ammoMax)
+    const ammoBulletsEl    = document.getElementById('ammo-bullets');
+    const ammoChargeFillEl = document.getElementById('ammo-charge-fill');
+    const bulletEls = [];
+    for (let i = 0; i < 10; i++) {
+      const span = document.createElement('span');
+      span.className = 'bullet empty';
+      ammoBulletsEl.appendChild(span);
+      bulletEls.push(span);
+    }
+
+    function updateAmmoHUD() {
+      const max = Math.round(P.ammoMax);
+      bulletEls.forEach((el, i) => {
+        if (i >= max) { el.style.display = 'none'; return; }
+        el.style.display = 'block';
+        el.className = 'bullet' + (i < ammo ? '' : ' empty');
+      });
+      // Charge bar only visible when not full
+      ammoChargeFillEl.style.width = ammo >= max ? '0%' : (ammoCharge * 100).toFixed(1) + '%';
+    }
+
     function fireCannon() {
       const fwd = new THREE.Vector3(Math.sin(carAngle), 0, Math.cos(carAngle));
       // Spawn at world position of cannon tip (front of car, scaled)
@@ -941,7 +1004,13 @@
       if (e.code === 'Tab') return;
       keys[e.code] = true;
       // Fire on initial press only (not key-repeat)
-      if (e.code === 'Space' && !e.repeat) fireCannon();
+      if (e.code === 'Space' && !e.repeat) {
+        if (ammo > 0) {
+          ammo--;
+          ammoCharge = ammoCharge; // preserve fractional progress
+          fireCannon();
+        }
+      }
       e.preventDefault();
     });
     window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -1013,6 +1082,21 @@
       sun.position.set(carGroup.position.x + 50, 100, carGroup.position.z + 30);
       sun.target.position.copy(carGroup.position);
       sun.target.updateMatrixWorld();
+
+      // ── Ammo recharge ────────────────────────────────────────
+      const maxAmmo = Math.round(P.ammoMax);
+      if (ammo < maxAmmo) {
+        ammoCharge += dt / P.ammoRecharge;
+        if (ammoCharge >= 1.0) {
+          ammo++;
+          ammoCharge = 0.0;
+        }
+      } else {
+        ammoCharge = 0.0;
+      }
+      // Clamp in case ammoMax slider decreased
+      ammo = Math.min(ammo, maxAmmo);
+      updateAmmoHUD();
 
       spdEl.textContent = Math.abs(speed * 3.6).toFixed(0);
       checkFinishLine(carGroup.position);
