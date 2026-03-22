@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>v4 - Road Object Prototype</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { background: #000; overflow: hidden; }
+    canvas { display: block; }
+    #hud {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      color: #fff;
+      font-family: monospace;
+      font-size: 13px;
+      background: rgba(0, 0, 0, 0.52);
+      padding: 8px 14px;
+      border-radius: 6px;
+      line-height: 1.9;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    #hud .label { color: #7d8796; }
+    #hud .val { color: #8bc7ff; font-weight: bold; }
+    #msg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: monospace;
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.66);
+      padding: 14px 28px;
+      border-radius: 10px;
+      pointer-events: none;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div><span class="label">SPEED   </span><span class="val" id="spd">0</span> km/h</div>
+    <div><span class="label">LAPS    </span><span class="val" id="laps">0</span></div>
+    <div><span class="label">BEST    </span><span class="val" id="best">--:--</span></div>
+    <div><span class="label">OFFROAD </span><span class="val" id="offroad">0.0</span> s</div>
+    <div><span class="label">CONTROLS</span> WASD / Arrows</div>
+  </div>
+  <div id="msg"></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.163.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    document.title = 'v4 - Road Object Prototype';
+
+    const WORLD_UP = new THREE.Vector3(0, 1, 0);
+    const LOCAL_FORWARD = new THREE.Vector3(0, 0, 1);
+    const LOCAL_UP = new THREE.Vector3(0, 1, 0);
+
+    const tempRight = new THREE.Vector3();
+    const tempUp = new THREE.Vector3();
+    const tempForward = new THREE.Vector3();
+    const tempA = new THREE.Vector3();
+    const tempB = new THREE.Vector3();
+    const tempC = new THREE.Vector3();
+    const tempMatrix = new THREE.Matrix4();
+
+    function wrap01(value) {
+      return ((value % 1) + 1) % 1;
+    }
+
+    function clamp01(value) {
+      return Math.max(0, Math.min(1, value));
+    }
+
+    function setQuaternionFromForwardUp(target, forward, up = WORLD_UP) {
+      tempForward.copy(forward).normalize();
+      tempRight.crossVectors(up, tempForward).normalize();
+      tempUp.crossVectors(tempForward, tempRight).normalize();
+      tempMatrix.makeBasis(tempRight, tempUp, tempForward);
+      target.setFromRotationMatrix(tempMatrix);
+      return target;
+    }
+
+    function addTriangle(positions, normals, a, b, c) {
+      positions.push(
+        a.x, a.y, a.z,
+        b.x, b.y, b.z,
+        c.x, c.y, c.z
+      );
+      for (let i = 0; i < 3; i++) {
+        normals.push(0, 1, 0);
+      }
+    }
+
+    class OvalCenterlineCurve extends THREE.Curve {
+      constructor(radius, straightHalfLength) {
+        super();
+        this.radius = radius;
+        this.straightHalfLength = straightHalfLength;
+        this.straightLength = straightHalfLength * 2;
+        this.arcLength = Math.PI * radius;
+        this.totalLength = this.straightLength * 2 + this.arcLength * 2;
+      }
+
+      getPoint(t, target = new THREE.Vector3()) {
+        const s = wrap01(t) * this.totalLength;
+
+        if (s < this.straightLength) {
+          return target.set(this.radius, 0, -this.straightHalfLength + s);
+        }
+
+        if (s < this.straightLength + this.arcLength) {
+          const arcS = s - this.straightLength;
+          const angle = arcS / this.radius;
+          return target.set(
+            Math.cos(angle) * this.radius,
+            0,
+            this.straightHalfLength + Math.sin(angle) * this.radius
+          );
+        }
+
+        if (s < this.straightLength * 2 + this.arcLength) {
+          const straightS = s - this.straightLength - this.arcLength;
+          return target.set(-this.radius, 0, this.straightHalfLength - straightS);
+        }
+
+        const arcS = s - this.straightLength * 2 - this.arcLength;
+        const angle = Math.PI + arcS / this.radius;
+        return target.set(
+          Math.cos(angle) * this.radius,
+          0,
+          -this.straightHalfLength + Math.sin(angle) * this.radius
+        );
+      }
+
+      getTangent(t, target = new THREE.Vector3()) {
+        const s = wrap01(t) * this.totalLength;
+
+        if (s < this.straightLength) {
+          return target.set(0, 0, 1);
+        }
+
+        if (s < this.straightLength + this.arcLength) {
+          const arcS = s - this.straightLength;
+          const angle = arcS / this.radius;
+          return target.set(-Math.sin(angle), 0, Math.cos(angle)).normalize();
+        }
+
+        if (s < this.straightLength * 2 + this.arcLength) {
+          return target.set(0, 0, -1);
+        }
+
+        const arcS = s - this.straightLength * 2 - this.arcLength;
+        const angle = Math.PI + arcS / this.radius;
+        return target.set(-Math.sin(angle), 0, Math.cos(angle)).normalize();
+      }
+
+      getPointAt(u, target = new THREE.Vector3()) {
+        return this.getPoint(u, target);
+      }
+
+      getTangentAt(u, target = new THREE.Vector3()) {
+        return this.getTangent(u, target);
+      }
+    }
+
+    class CurveRoad {
+      constructor({ curve, width, sampleCount = 240, wallRanges = [] }) {
+        this.curve = curve;
+        this.width = width;
+        this.halfWidth = width * 0.5;
+        this.sampleCount = sampleCount;
+        this.wallRanges = wallRanges;
+        this.frames = [];
+        this.length = 0;
+        this.resample();
+      }
+
+      resample() {
+        this.frames = [];
+        this.length = 0;
+
+        let previousPoint = null;
+        for (let i = 0; i < this.sampleCount; i++) {
+          const t = i / this.sampleCount;
+          const point = this.curve.getPointAt(t, new THREE.Vector3());
+          const tangent = this.curve.getTangentAt(t, new THREE.Vector3()).normalize();
+          const right = new THREE.Vector3().crossVectors(tangent, WORLD_UP).normalize();
+
+          if (previousPoint) {
+            this.length += previousPoint.distanceTo(point);
+          }
+
+          this.frames.push({ t, point, tangent, right });
+          previousPoint = point;
+        }
+
+        this.length += this.frames[this.frames.length - 1].point.distanceTo(this.frames[0].point);
+      }
+
+      getFrameAt(t) {
+        const point = this.curve.getPointAt(wrap01(t), new THREE.Vector3());
+        const tangent = this.curve.getTangentAt(wrap01(t), new THREE.Vector3()).normalize();
+        const right = new THREE.Vector3().crossVectors(tangent, WORLD_UP).normalize();
+        return { point, tangent, right, t: wrap01(t) };
+      }
+
+      inRange(t, start, end) {
+        const wrapped = wrap01(t);
+        const a = wrap01(start);
+        const b = wrap01(end);
+        if (a <= b) return wrapped >= a && wrapped <= b;
+        return wrapped >= a || wrapped <= b;
+      }
+
+      getWallConfigAt(t) {
+        const config = { left: false, right: false };
+        for (const range of this.wallRanges) {
+          if (!this.inRange(t, range.start, range.end)) continue;
+          config.left = config.left || !!range.left;
+          config.right = config.right || !!range.right;
+        }
+        return config;
+      }
+
+      projectPoint(point) {
+        let bestDistanceSq = Infinity;
+        let bestT = 0;
+        const bestPoint = new THREE.Vector3();
+        const bestTangent = new THREE.Vector3();
+        const bestRight = new THREE.Vector3();
+
+        const px = point.x;
+        const pz = point.z;
+
+        for (let i = 0; i < this.frames.length; i++) {
+          const a = this.frames[i];
+          const b = this.frames[(i + 1) % this.frames.length];
+          const vx = b.point.x - a.point.x;
+          const vz = b.point.z - a.point.z;
+          const lenSq = vx * vx + vz * vz;
+          if (lenSq === 0) continue;
+
+          const apx = px - a.point.x;
+          const apz = pz - a.point.z;
+          const u = clamp01((apx * vx + apz * vz) / lenSq);
+          const cx = a.point.x + vx * u;
+          const cz = a.point.z + vz * u;
+          const dx = px - cx;
+          const dz = pz - cz;
+          const distSq = dx * dx + dz * dz;
+
+          if (distSq >= bestDistanceSq) continue;
+
+          bestDistanceSq = distSq;
+          bestPoint.set(cx, 0, cz);
+          bestTangent.set(vx, 0, vz).normalize();
+          bestRight.crossVectors(bestTangent, WORLD_UP).normalize();
+          bestT = wrap01((i + u) / this.frames.length);
+        }
+
+        return {
+          distanceSq: bestDistanceSq,
+          closestPoint: bestPoint,
+          tangent: bestTangent,
+          right: bestRight,
+          t: bestT,
+        };
+      }
+
+      containsPoint(point, margin = 0) {
+        const radius = this.halfWidth - margin;
+        if (radius <= 0) return false;
+        const projection = this.projectPoint(point);
+        return projection.distanceSq <= radius * radius;
+      }
+
+      buildSurface(scene) {
+        const positions = [];
+        const normals = [];
+
+        for (let i = 0; i < this.frames.length; i++) {
+          const a = this.frames[i];
+          const b = this.frames[(i + 1) % this.frames.length];
+
+          const leftA = a.point.clone().addScaledVector(a.right, -this.halfWidth);
+          const rightA = a.point.clone().addScaledVector(a.right, this.halfWidth);
+          const leftB = b.point.clone().addScaledVector(b.right, -this.halfWidth);
+          const rightB = b.point.clone().addScaledVector(b.right, this.halfWidth);
+
+          addTriangle(positions, normals, leftA, rightA, leftB);
+          addTriangle(positions, normals, rightA, rightB, leftB);
+        }
+
+        const roadGeo = new THREE.BufferGeometry();
+        roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        roadGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+
+        const roadMesh = new THREE.Mesh(
+          roadGeo,
+          new THREE.MeshLambertMaterial({ color: 0x303030 })
+        );
+        roadMesh.receiveShadow = true;
+        scene.add(roadMesh);
+
+        const dashMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        const dashLength = 2.6;
+        const dashSpacing = 7.5;
+        const dashCount = Math.floor(this.length / dashSpacing);
+        for (let i = 0; i < dashCount; i++) {
+          const t = wrap01((i * dashSpacing + dashSpacing * 0.5) / this.length);
+          const frame = this.getFrameAt(t);
+          const dash = new THREE.Mesh(
+            new THREE.BoxGeometry(0.24, 0.02, dashLength),
+            dashMat
+          );
+          dash.position.copy(frame.point).setY(0.02);
+          setQuaternionFromForwardUp(dash.quaternion, frame.tangent, WORLD_UP);
+          scene.add(dash);
+        }
+      }
+
+      buildFinishLine(scene, t = 0) {
+        const frame = this.getFrameAt(t);
+        const finish = new THREE.Mesh(
+          new THREE.BoxGeometry(this.width, 0.02, 1.2),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        finish.position.copy(frame.point).setY(0.03);
+        setQuaternionFromForwardUp(finish.quaternion, frame.tangent, WORLD_UP);
+        scene.add(finish);
+
+        const checkers = 8;
+        const cellWidth = this.width / checkers;
+        for (let i = 0; i < checkers; i++) {
+          if (i % 2 !== 0) continue;
+          const cell = new THREE.Mesh(
+            new THREE.BoxGeometry(cellWidth, 0.021, 1.2),
+            new THREE.MeshLambertMaterial({ color: 0x111111 })
+          );
+          cell.position.copy(frame.point)
+            .addScaledVector(frame.right, -this.halfWidth + cellWidth * i + cellWidth * 0.5)
+            .setY(0.031);
+          setQuaternionFromForwardUp(cell.quaternion, frame.tangent, WORLD_UP);
+          scene.add(cell);
+        }
+
+        return frame;
+      }
+
+      addWallSegment(scene, frameA, frameB, side, options) {
+        const sideSign = side === 'left' ? -1 : 1;
+        const edgeA = frameA.point.clone().addScaledVector(frameA.right, sideSign * this.halfWidth);
+        const edgeB = frameB.point.clone().addScaledVector(frameB.right, sideSign * this.halfWidth);
+
+        const inward = frameA.right.clone().add(frameB.right).normalize()
+          .multiplyScalar(side === 'left' ? 1 : -1);
+
+        const centerA = edgeA.clone().addScaledVector(inward, options.thickness * 0.5);
+        const centerB = edgeB.clone().addScaledVector(inward, options.thickness * 0.5);
+        const wallForward = centerB.clone().sub(centerA).setY(0);
+        const wallLength = wallForward.length();
+        if (wallLength < 0.01) return null;
+
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(options.thickness, options.height, wallLength + 0.05),
+          new THREE.MeshLambertMaterial({ color: 0xee2222 })
+        );
+        wall.position.copy(centerA).lerp(centerB, 0.5).setY(options.height * 0.5);
+        setQuaternionFromForwardUp(wall.quaternion, wallForward.normalize(), WORLD_UP);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+
+        return {
+          a: edgeA,
+          b: edgeB,
+          normal: inward,
+          halfThickness: options.thickness * 0.5,
+        };
+      }
+
+      buildWalls(scene, options = {}) {
+        const wallOptions = {
+          thickness: options.thickness ?? 0.35,
+          height: options.height ?? 0.6,
+        };
+        const colliders = [];
+
+        for (let i = 0; i < this.frames.length; i++) {
+          const a = this.frames[i];
+          const b = this.frames[(i + 1) % this.frames.length];
+          const tMid = wrap01((a.t + b.t) * 0.5);
+          const wallConfig = this.getWallConfigAt(tMid);
+
+          if (wallConfig.left) {
+            const collider = this.addWallSegment(scene, a, b, 'left', wallOptions);
+            if (collider) colliders.push(collider);
+          }
+
+          if (wallConfig.right) {
+            const collider = this.addWallSegment(scene, a, b, 'right', wallOptions);
+            if (collider) colliders.push(collider);
+          }
+        }
+
+        return colliders;
+      }
+    }
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x5a8fd0);
+    scene.fog = new THREE.FogExp2(0x5a8fd0, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 400);
+
+    function resize() {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    scene.add(new THREE.AmbientLight(0xcce0ff, 0.5));
+
+    const sun = new THREE.DirectionalLight(0xfff5d0, 1.6);
+    sun.position.set(50, 100, 30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 300;
+    sun.shadow.camera.left = -80;
+    sun.shadow.camera.right = 80;
+    sun.shadow.camera.top = 80;
+    sun.shadow.camera.bottom = -80;
+    scene.add(sun);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshLambertMaterial({ color: 0x3d6b35 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const TRACK_HALF_LEN = 38;
+    const TRACK_RADIUS = 22;
+    const ROAD_WIDTH = 10;
+
+    const centerCurve = new OvalCenterlineCurve(TRACK_RADIUS, TRACK_HALF_LEN);
+    const straightSpan = centerCurve.straightLength / centerCurve.totalLength;
+    const arcSpan = centerCurve.arcLength / centerCurve.totalLength;
+
+    const road = new CurveRoad({
+      curve: centerCurve,
+      width: ROAD_WIDTH,
+      sampleCount: 280,
+      wallRanges: [
+        { start: 0.0, end: straightSpan, left: true, right: true },
+        {
+          start: straightSpan + arcSpan,
+          end: straightSpan + arcSpan + straightSpan,
+          left: true,
+          right: true,
+        },
+      ],
+    });
+
+    road.buildSurface(scene);
+    const finishFrame = road.buildFinishLine(scene, 0);
+    const wallColliders = road.buildWalls(scene, { thickness: 0.35, height: 0.6 });
+
+    function rng(seed) {
+      let s = seed;
+      return () => {
+        s = (s * 1664525 + 1013904223) & 0xffffffff;
+        return (s >>> 0) / 4294967296;
+      };
+    }
+    const rand = rng(77);
+    const treeSamplePos = new THREE.Vector3();
+    const TREE_CLEARANCE = 2.5;
+
+    function canPlaceTree(x, z, clearance = TREE_CLEARANCE) {
+      treeSamplePos.set(x, 0, z);
+      return !road.containsPoint(treeSamplePos, clearance);
+    }
+
+    function addTree(x, z, h = 1) {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12 * h, 0.18 * h, 1.2 * h, 6),
+        new THREE.MeshLambertMaterial({ color: 0x6b3f1e })
+      );
+      trunk.position.set(x, 0.6 * h, z);
+      trunk.castShadow = true;
+      scene.add(trunk);
+
+      const foliage = new THREE.Mesh(
+        new THREE.ConeGeometry(0.9 * h, 2.2 * h, 7),
+        new THREE.MeshLambertMaterial({ color: 0x1b5e20 + Math.floor(rand() * 0x103010) })
+      );
+      foliage.position.set(x, (1.2 + 1.1) * h, z);
+      foliage.castShadow = true;
+      scene.add(foliage);
+    }
+
+    function scatterTrees(count, sampler, maxAttempts = count * 25) {
+      let placed = 0;
+      let attempts = 0;
+      while (placed < count && attempts < maxAttempts) {
+        attempts++;
+        const sample = sampler();
+        if (!canPlaceTree(sample.x, sample.z)) continue;
+        addTree(sample.x, sample.z, sample.h);
+        placed++;
+      }
+    }
+
+    scatterTrees(80, () => {
+      const a = rand() * Math.PI * 2;
+      const d = 48 + rand() * 30;
+      return {
+        x: Math.cos(a) * d,
+        z: Math.sin(a) * d,
+        h: 0.7 + rand() * 0.8,
+      };
+    });
+
+    scatterTrees(20, () => {
+      const a = rand() * Math.PI * 2;
+      const d = rand() * 12;
+      return {
+        x: Math.cos(a) * d,
+        z: Math.sin(a) * d,
+        h: 0.6 + rand() * 0.5,
+      };
+    });
+
+    {
+      const mat = new THREE.MeshLambertMaterial({ color: 0x607d8b });
+      const stand = new THREE.Mesh(new THREE.BoxGeometry(18, 3, 4), mat);
+      stand.position.set(0, 1.5, -(TRACK_HALF_LEN + TRACK_RADIUS + 5));
+      stand.castShadow = true;
+      stand.receiveShadow = true;
+      scene.add(stand);
+
+      const seatMat = new THREE.MeshLambertMaterial({ color: 0xe53935 });
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 9; col++) {
+          const seat = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.3, 0.8), seatMat);
+          seat.position.set(-7 + col * 1.8, 0.8 + row * 0.8, -(TRACK_HALF_LEN + TRACK_RADIUS + 3.2 - row * 0.5));
+          scene.add(seat);
+        }
+      }
+    }
+
+    const carGroup = new THREE.Group();
+    const carVisual = new THREE.Group();
+    carGroup.add(carVisual);
+    scene.add(carGroup);
+
+    const matBody = new THREE.MeshLambertMaterial({ color: 0x1565c0 });
+    const matCabin = new THREE.MeshLambertMaterial({ color: 0x1976d2 });
+    const matWheel = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const matRim = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
+    const matGlass = new THREE.MeshLambertMaterial({ color: 0x88aaff, transparent: true, opacity: 0.6 });
+    const matLight = new THREE.MeshLambertMaterial({ color: 0xffffcc, emissive: 0xffff00 });
+
+    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 4.0), matBody);
+    bodyMesh.position.y = 0.5;
+    bodyMesh.castShadow = true;
+    carVisual.add(bodyMesh);
+
+    const spoilerBase = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 0.5), matBody);
+    spoilerBase.position.set(0, 1.05, -2.1);
+    carVisual.add(spoilerBase);
+
+    const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.35, 0.08), matBody);
+    spoilerWing.position.set(0, 1.28, -2.1);
+    spoilerWing.castShadow = true;
+    carVisual.add(spoilerWing);
+
+    [-0.75, 0.75].forEach((x) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.07), matBody);
+      post.position.set(x, 1.16, -2.1);
+      carVisual.add(post);
+    });
+
+    const cabinMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 1.9), matCabin);
+    cabinMesh.position.set(0, 0.96, -0.25);
+    cabinMesh.castShadow = true;
+    carVisual.add(cabinMesh);
+
+    [
+      { pos: [0, 0.96, 0.76], rot: [0, 0, 0], w: 1.35, h: 0.35 },
+      { pos: [0, 0.96, -1.21], rot: [0, 0, 0], w: 1.35, h: 0.32 },
+      { pos: [0.71, 0.96, -0.25], rot: [0, Math.PI / 2, 0], w: 1.7, h: 0.3 },
+      { pos: [-0.71, 0.96, -0.25], rot: [0, Math.PI / 2, 0], w: 1.7, h: 0.3 },
+    ].forEach(({ pos, rot, w, h }) => {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), matGlass);
+      mesh.position.set(...pos);
+      mesh.rotation.set(...rot);
+      carVisual.add(mesh);
+    });
+
+    [-0.55, 0.55].forEach((x) => {
+      const light = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.05), matLight);
+      light.position.set(x, 0.55, 2.03);
+      carVisual.add(light);
+    });
+
+    const wheels = [];
+    [[-1.0, 0.3, 1.35], [1.0, 0.3, 1.35], [-1.0, 0.3, -1.35], [1.0, 0.3, -1.35]].forEach((pos) => {
+      const wheel = new THREE.Group();
+      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.24, 18), matWheel);
+      tire.rotation.z = Math.PI / 2;
+      tire.castShadow = true;
+      wheel.add(tire);
+
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.25, 8), matRim);
+      rim.rotation.z = Math.PI / 2;
+      wheel.add(rim);
+
+      for (let i = 0; i < 5; i++) {
+        const spoke = new THREE.Mesh(
+          new THREE.BoxGeometry(0.04, 0.3, 0.04),
+          new THREE.MeshLambertMaterial({ color: 0x888888 })
+        );
+        spoke.rotation.z = (i / 5) * Math.PI * 2;
+        wheel.add(spoke);
+      }
+
+      wheel.position.set(...pos);
+      carVisual.add(wheel);
+      wheels.push(wheel);
+    });
+
+    const START_T = 0.03;
+    const startFrame = road.getFrameAt(START_T);
+    const START_POS = startFrame.point.clone();
+    const START_QUAT = new THREE.Quaternion();
+    setQuaternionFromForwardUp(START_QUAT, startFrame.tangent, WORLD_UP);
+    carGroup.position.copy(START_POS);
+    carGroup.quaternion.copy(START_QUAT);
+
+    let lapCount = 0;
+    let bestLap = Infinity;
+    let lapStartTime = 0;
+    let lapActive = false;
+    let previousFinishDot = null;
+
+    function fmtTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = (seconds % 60).toFixed(2).padStart(5, '0');
+      return `${minutes}:${secs}`;
+    }
+
+    const msgEl = document.getElementById('msg');
+    let msgTimer = null;
+    function showMsg(text) {
+      msgEl.textContent = text;
+      msgEl.style.display = 'block';
+      if (msgTimer) clearTimeout(msgTimer);
+      msgTimer = setTimeout(() => { msgEl.style.display = 'none'; }, 2200);
+    }
+
+    function updateFinishState(pos) {
+      tempA.copy(pos).sub(finishFrame.point);
+      const longitudinal = tempA.dot(finishFrame.tangent);
+      const lateral = Math.abs(tempA.dot(finishFrame.right));
+      const nearLine = lateral <= road.halfWidth + 0.5 && Math.abs(longitudinal) <= 2.5;
+
+      if (previousFinishDot !== null && previousFinishDot < 0 && longitudinal >= 0 && nearLine) {
+        const now = performance.now() / 1000;
+        if (lapActive) {
+          const lapTime = now - lapStartTime;
+          lapCount++;
+          if (lapTime < bestLap) bestLap = lapTime;
+          document.getElementById('laps').textContent = lapCount;
+          document.getElementById('best').textContent = fmtTime(bestLap);
+          showMsg(`Lap ${lapCount} - ${fmtTime(lapTime)}`);
+        }
+        lapStartTime = now;
+        lapActive = true;
+      }
+
+      previousFinishDot = longitudinal;
+    }
+
+    const keys = {};
+    window.addEventListener('keydown', (event) => {
+      keys[event.code] = true;
+      event.preventDefault();
+    });
+    window.addEventListener('keyup', (event) => {
+      keys[event.code] = false;
+    });
+
+    let speed = 0;
+    let driveTime = 0;
+    let offRoadTime = 0;
+
+    const MAX_SPEED = 28;
+    const ACCEL = 14;
+    const BRAKE_FORCE = 22;
+    const FRICTION = 6;
+    const TURN_RATE = 1.8;
+    const CAR_RADIUS = 1.15;
+    const WALL_BOUNCE = 0.62;
+    const WALL_PUSH_EPS = 0.04;
+    const OFFROAD_MARGIN = 0.15;
+    const OFFROAD_RESPAWN_DELAY = 2.0;
+    const RESPAWN_LOOKBACK = 2.5;
+    const SNAPSHOT_INTERVAL = 0.12;
+    const SNAPSHOT_WINDOW = 8.0;
+
+    const previousCarPos = new THREE.Vector3();
+    const candidateCarPos = new THREE.Vector3();
+    const candidateVelocity = new THREE.Vector3();
+    const carForward = new THREE.Vector3();
+    const carUp = new THREE.Vector3();
+    const cameraOffset = new THREE.Vector3(0, 4.5, -11);
+    const cameraLookOffset = new THREE.Vector3(0, 1.2, 4);
+    const desiredCameraPos = new THREE.Vector3();
+    const smoothCameraPos = new THREE.Vector3();
+    const cameraLookAt = new THREE.Vector3();
+    const steeringQuat = new THREE.Quaternion();
+    const safeSnapshots = [];
+
+    const speedEl = document.getElementById('spd');
+    const offRoadEl = document.getElementById('offroad');
+    const clock = new THREE.Clock();
+
+    function getCarForward(out) {
+      return out.copy(LOCAL_FORWARD).applyQuaternion(carGroup.quaternion).normalize();
+    }
+
+    function getCarUp(out) {
+      return out.copy(LOCAL_UP).applyQuaternion(carGroup.quaternion).normalize();
+    }
+
+    function snapCameraToCar() {
+      desiredCameraPos.copy(cameraOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      smoothCameraPos.copy(desiredCameraPos);
+      cameraLookAt.copy(cameraLookOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      getCarUp(carUp);
+      camera.position.copy(smoothCameraPos);
+      camera.up.copy(carUp);
+      camera.lookAt(cameraLookAt);
+    }
+
+    function recordSafeSnapshot() {
+      const last = safeSnapshots[safeSnapshots.length - 1];
+      if (!last || driveTime - last.time >= SNAPSHOT_INTERVAL) {
+        safeSnapshots.push({
+          time: driveTime,
+          position: carGroup.position.clone(),
+          quaternion: carGroup.quaternion.clone(),
+        });
+      }
+
+      while (safeSnapshots.length > 1 && driveTime - safeSnapshots[0].time > SNAPSHOT_WINDOW) {
+        safeSnapshots.shift();
+      }
+    }
+
+    function getRespawnSnapshot() {
+      const targetTime = driveTime - RESPAWN_LOOKBACK;
+      for (let i = safeSnapshots.length - 1; i >= 0; i--) {
+        if (safeSnapshots[i].time <= targetTime) return safeSnapshots[i];
+      }
+      return safeSnapshots[0] || { position: START_POS, quaternion: START_QUAT };
+    }
+
+    function respawnCar() {
+      const snapshot = getRespawnSnapshot();
+      carGroup.position.copy(snapshot.position);
+      carGroup.quaternion.copy(snapshot.quaternion);
+      speed = 0;
+      offRoadTime = 0;
+      previousFinishDot = null;
+      snapCameraToCar();
+      showMsg('Respawn');
+    }
+
+    function closestPointOnSegment(point, a, b, out) {
+      tempA.copy(b).sub(a);
+      const lenSq = tempA.lengthSq();
+      const t = lenSq === 0 ? 0 : clamp01(tempB.copy(point).sub(a).dot(tempA) / lenSq);
+      return out.copy(a).addScaledVector(tempA, t);
+    }
+
+    function resolveWallBounce(nextPos, velocity) {
+      for (const wall of wallColliders) {
+        const closest = closestPointOnSegment(nextPos, wall.a, wall.b, tempC);
+        const offset = tempB.copy(nextPos).sub(closest).setY(0);
+        const distanceToSegment = offset.length();
+        const signedDistance = offset.dot(wall.normal);
+        const collisionRadius = CAR_RADIUS + wall.halfThickness;
+        if (distanceToSegment > collisionRadius) continue;
+
+        const pushNormal = signedDistance >= 0 ? wall.normal : tempA.copy(wall.normal).negate();
+        const penetration = collisionRadius - distanceToSegment;
+        nextPos.addScaledVector(pushNormal, penetration + WALL_PUSH_EPS);
+
+        const intoWall = velocity.dot(pushNormal);
+        if (intoWall < 0) velocity.reflect(pushNormal).multiplyScalar(WALL_BOUNCE);
+        return true;
+      }
+      return false;
+    }
+
+    recordSafeSnapshot();
+    snapCameraToCar();
+
+    function update(dt) {
+      driveTime += dt;
+
+      const fwd = keys['KeyW'] || keys['ArrowUp'];
+      const back = keys['KeyS'] || keys['ArrowDown'];
+      const left = keys['KeyA'] || keys['ArrowLeft'];
+      const right = keys['KeyD'] || keys['ArrowRight'];
+
+      if (fwd) speed = Math.min(speed + ACCEL * dt, MAX_SPEED);
+      else if (back) speed = Math.max(speed - BRAKE_FORCE * dt, -MAX_SPEED * 0.45);
+      else {
+        const friction = FRICTION * dt;
+        speed = Math.abs(speed) < friction ? 0 : speed - Math.sign(speed) * friction;
+      }
+
+      const speedFrac = Math.abs(speed) / MAX_SPEED;
+      const steerInput = (left ? 1 : 0) + (right ? -1 : 0);
+      if (steerInput !== 0) {
+        getCarUp(carUp);
+        steeringQuat.setFromAxisAngle(carUp, TURN_RATE * dt * speedFrac * Math.sign(speed || 1) * steerInput);
+        carGroup.quaternion.premultiply(steeringQuat).normalize();
+      }
+
+      previousCarPos.copy(carGroup.position);
+      getCarForward(carForward);
+      candidateVelocity.copy(carForward).multiplyScalar(speed);
+      candidateCarPos.copy(carGroup.position).addScaledVector(candidateVelocity, dt);
+
+      const bounced = resolveWallBounce(candidateCarPos, candidateVelocity);
+      carGroup.position.copy(candidateCarPos);
+
+      if (bounced) {
+        if (candidateVelocity.lengthSq() > 1e-6) {
+          setQuaternionFromForwardUp(carGroup.quaternion, candidateVelocity, getCarUp(carUp));
+          speed = candidateVelocity.length();
+        } else {
+          speed = 0;
+        }
+      }
+
+      const travelDist = carGroup.position.distanceTo(previousCarPos) * Math.sign(speed || 1);
+      wheels.forEach((wheel) => { wheel.rotation.x += travelDist / 0.3; });
+
+      const onRoad = road.containsPoint(carGroup.position, OFFROAD_MARGIN);
+      if (onRoad) {
+        offRoadTime = 0;
+        recordSafeSnapshot();
+      } else {
+        offRoadTime += dt;
+        if (offRoadTime >= OFFROAD_RESPAWN_DELAY) {
+          respawnCar();
+          return;
+        }
+      }
+
+      offRoadEl.textContent = offRoadTime.toFixed(1);
+
+      desiredCameraPos.copy(cameraOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      smoothCameraPos.lerp(desiredCameraPos, 7 * dt);
+      camera.position.copy(smoothCameraPos);
+
+      cameraLookAt.copy(cameraLookOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      getCarUp(carUp);
+      camera.up.copy(carUp);
+      camera.lookAt(cameraLookAt);
+
+      sun.position.set(carGroup.position.x + 50, 100, carGroup.position.z + 30);
+      sun.target.position.copy(carGroup.position);
+      sun.target.updateMatrixWorld();
+
+      speedEl.textContent = Math.abs(speed * 3.6).toFixed(0);
+      updateFinishState(carGroup.position);
+    }
+
+    function loop() {
+      requestAnimationFrame(loop);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      update(dt);
+      renderer.render(scene, camera);
+    }
+
+    loop();
+  </script>
+</body>
+</html>

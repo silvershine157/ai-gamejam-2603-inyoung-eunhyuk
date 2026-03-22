@@ -1,0 +1,11 @@
+{
+  "name": "ai-gamejam-2603-inyoung-eunhyuk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "qa:record": "node tools/qa/record_gameplay.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.54.2"
+  }
+}

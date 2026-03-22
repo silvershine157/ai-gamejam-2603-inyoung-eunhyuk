@@ -1,0 +1,15 @@
+{
+  "name": "v6-smoke",
+  "description": "Basic drive, wall hit, off-road run, and rebound observation check for v6.",
+  "steps": [
+    { "type": "wait", "ms": 1000, "label": "settle" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 2200, "label": "launch straight" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 1400, "label": "left arc" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1200, "label": "recover" },
+    { "type": "hold", "keys": ["KeyW", "KeyD"], "ms": 1800, "label": "open arc exit" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1000, "label": "commit offroad" },
+    { "type": "hold", "keys": ["KeyW", "KeyD"], "ms": 1500, "label": "seek outer tree line" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1600, "label": "observe rebound or respawn" },
+    { "type": "wait", "ms": 1000, "label": "cooldown" }
+  ]
+}

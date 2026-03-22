@@ -1,0 +1,15 @@
+{
+  "name": "v4-smoke",
+  "description": "Basic drive, turn, wall contact, and off-road recovery check for v4.",
+  "steps": [
+    { "type": "wait", "ms": 1000, "label": "settle" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 2200, "label": "launch straight" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 1400, "label": "left arc" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1200, "label": "recover" },
+    { "type": "hold", "keys": ["KeyW", "KeyD"], "ms": 1600, "label": "right arc" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1500, "label": "speed up" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 2400, "label": "seek wall or edge" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 2600, "label": "observe bounce or respawn" },
+    { "type": "wait", "ms": 1000, "label": "cooldown" }
+  ]
+}
