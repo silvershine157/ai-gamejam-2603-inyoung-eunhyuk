@@ -1,6 +1,6 @@
 <html lang="en"><head>
   <meta charset="UTF-8">
-  <title>morph — Size Gimmick POC</title>
+  <title>bigsmall — Size Gimmick POC</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; overflow: hidden; }
@@ -229,6 +229,9 @@
   <!-- Control panel (built by JS) -->
   <div id="panel" class=""><div class="panel-section"><div class="panel-section-title">Size System</div><div class="param-row"><label>Size Rate</label><input type="range" min="0.2" max="5" step="0.05"><span class="pval">1.50</span><span class="pdiff"></span></div><div class="param-row"><label>Size Min</label><input type="range" min="0.1" max="1" step="0.05"><span class="pval">0.40</span><span class="pdiff"></span></div><div class="param-row"><label>Size Max</label><input type="range" min="1" max="4" step="0.1"><span class="pval">2.5</span><span class="pdiff"></span></div><div class="param-row"><label>Visual Lerp</label><input type="range" min="1" max="20" step="0.5"><span class="pval">8.0</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Driving Base (at 1×)</div><div class="param-row"><label>Max Speed</label><input type="range" min="5" max="60" step="1"><span class="pval">28</span><span class="pdiff"></span></div><div class="param-row"><label>Acceleration</label><input type="range" min="2" max="30" step="0.5"><span class="pval">14.0</span><span class="pdiff"></span></div><div class="param-row"><label>Braking</label><input type="range" min="5" max="50" step="0.5"><span class="pval">22.0</span><span class="pdiff"></span></div><div class="param-row"><label>Friction</label><input type="range" min="1" max="20" step="0.5"><span class="pval">6.0</span><span class="pdiff"></span></div><div class="param-row"><label>Turn Rate</label><input type="range" min="0.2" max="4" step="0.1"><span class="pval">1.8</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — Speed</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">1.50</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">0.70</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — Acceleration</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">1.50</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">0.60</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — Turn</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.1" max="5" step="0.05"><span class="pval">2.50</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.1" max="5" step="0.05"><span class="pval">0.40</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — HP</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.05" max="2" step="0.05"><span class="pval">0.30</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.5" max="5" step="0.1"><span class="pval">3.0</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — ATK</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.05" max="2" step="0.05"><span class="pval">0.20</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.5" max="5" step="0.1"><span class="pval">3.0</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Cannon</div><div class="param-row"><label>Proj Speed</label><input type="range" min="10" max="120" step="1"><span class="pval">50</span><span class="pdiff"></span></div><div class="param-row"><label>Proj Radius</label><input type="range" min="0.05" max="1" step="0.01"><span class="pval">0.22</span><span class="pdiff"></span></div><div class="param-row"><label>Proj Lifetime</label><input type="range" min="1" max="12" step="0.5"><span class="pval">5.0</span><span class="pdiff"></span></div><div class="param-row"><label>Ammo Max</label><input type="range" min="1" max="10" step="1"><span class="pval">5</span><span class="pdiff"></span></div><div class="param-row"><label>Recharge (s)</label><input type="range" min="0.5" max="10" step="0.5"><span class="pval">1.0</span><span class="pdiff" style="color: rgb(68, 204, 255);">▼67%</span></div></div><div class="panel-footer"><button class="panel-btn">Restore Default</button><button class="panel-btn accent">Save to HTML</button></div></div>
 
+  <!-- params.js sets window.MORPH_PARAMS — works with file:// and http:// -->
+  <script src="params.js"></script>
+
   <script type="importmap">
   { "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js" } }
   </script>
@@ -264,19 +267,13 @@
       ammoRecharge  : 1.0,
     };
 
-    // Live params object — starts from DEFAULTS, overwritten by params.json
+    // Live params object — starts from DEFAULTS, overwritten by params.js if loaded
     const P = { ...DEFAULTS };
-
-    // Load params.json (top-level await — requires type="module", which we have)
-    try {
-      const res = await fetch('./params.json');
-      if (res.ok) {
-        const saved = await res.json();
-        Object.keys(DEFAULTS).forEach(k => {
-          if (saved[k] !== undefined) P[k] = parseFloat(saved[k]);
-        });
-      }
-    } catch (_) { /* server not running or file missing — use DEFAULTS */ }
+    if (window.MORPH_PARAMS) {
+      Object.keys(DEFAULTS).forEach(k => {
+        if (window.MORPH_PARAMS[k] !== undefined) P[k] = parseFloat(window.MORPH_PARAMS[k]);
+      });
+    }
 
     // ── Control panel builder ─────────────────────────────────
     const panelEl  = document.getElementById('panel');
@@ -465,12 +462,13 @@
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'panel-btn accent';
-    saveBtn.textContent = 'Save to JSON';
+    saveBtn.textContent = 'Save params.js';
     saveBtn.addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(P, null, 2)], { type: 'application/json' });
+      const content = 'window.MORPH_PARAMS = ' + JSON.stringify(P, null, 2) + ';\n';
+      const blob = new Blob([content], { type: 'text/javascript' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'params.json';
+      a.download = 'params.js';
       a.click();
       URL.revokeObjectURL(a.href);
 
