@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Game Demos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: #1a1a1a;
+      border-right: 1px solid #2e2e2e;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 12px;
+      gap: 8px;
+    }
+    #sidebar h1 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #2e2e2e;
+    }
+    .version-btn {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      background: transparent;
+      border: 1px solid #2e2e2e;
+      border-radius: 6px;
+      color: #ccc;
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .version-btn:hover {
+      background: #252525;
+      border-color: #444;
+      color: #fff;
+    }
+    .version-btn.active {
+      background: #1e3a5f;
+      border-color: #2d6abf;
+      color: #7eb8f7;
+    }
+    .version-btn .tag {
+      display: block;
+      font-size: 10px;
+      color: #666;
+      margin-top: 3px;
+    }
+    .version-btn.active .tag { color: #4a8fd4; }
+
+    /* Game area */
+    #game-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0a;
+    }
+    #game-wrapper {
+      position: relative;
+      /* 16:9 aspect ratio, fills available space */
+      width: min(calc(100vh * 16 / 9), 100%);
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border: 1px solid #222;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #game-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+    #placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      font-size: 14px;
+      gap: 8px;
+    }
+    #placeholder svg { opacity: 0.3; }
+  </style>
+</head>
+<body>
+  <nav id="sidebar">
+    <h1>Versions</h1>
+    <button class="version-btn" data-src="versions/v1/index.html" onclick="loadVersion(this)">
+      v1 — Basic Drive
+      <span class="tag">Flat terrain · follow cam</span>
+    </button>
+    <button class="version-btn" data-src="versions/v2/index.html" onclick="loadVersion(this)">
+      v2 — Road &amp; Obstacles
+      <span class="tag">Track · trees · shadows</span>
+    </button>
+  </nav>
+
+  <div id="game-area">
+    <div id="game-wrapper">
+      <div id="placeholder">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polygon points="5,3 19,12 5,21"/>
+        </svg>
+        <span>Select a version to play</span>
+      </div>
+      <iframe id="game-frame" style="display:none"></iframe>
+    </div>
+  </div>
+
+  <script>
+    function loadVersion(btn) {
+      document.querySelectorAll('.version-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const frame = document.getElementById('game-frame');
+      const placeholder = document.getElementById('placeholder');
+      frame.src = btn.dataset.src;
+      frame.style.display = 'block';
+      placeholder.style.display = 'none';
+    }
+  </script>
+</body>
+</html>
