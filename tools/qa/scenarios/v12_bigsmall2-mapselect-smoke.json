@@ -1,0 +1,16 @@
+{
+  "name": "v12_bigsmall2-mapselect-smoke",
+  "description": "Select the grand prix map, wait through countdown, test size controls and cannon fire, then drive.",
+  "steps": [
+    { "type": "wait_for_selector", "selector": "#map-menu .map-option[data-map='grandprix']" },
+    { "type": "click", "selector": "#map-menu .map-option[data-map='grandprix']", "expectNavigation": true, "navigationWaitMs": 1000 },
+    { "type": "wait", "ms": 3600, "label": "countdown" },
+    { "type": "hold", "keys": ["KeyX"], "ms": 400, "label": "grow" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1600, "label": "launch" },
+    { "type": "tap", "key": "Space", "ms": 350, "label": "fire" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 1200, "label": "first arc" },
+    { "type": "hold", "keys": ["KeyZ"], "ms": 400, "label": "shrink" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 900, "label": "stabilize" },
+    { "type": "wait", "ms": 800, "label": "cooldown" }
+  ]
+}
