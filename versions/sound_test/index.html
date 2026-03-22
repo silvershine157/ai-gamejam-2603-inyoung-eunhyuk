@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>sound_test — Chiptune Audio Lab</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0ff;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    #screen {
+      width: 480px;
+      height: 320px;
+      background: #111122;
+      border: 2px solid #334;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* pixel grid feel */
+    #screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,0.08) 3px,
+        rgba(0,0,0,0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    canvas#vis {
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font-size: 11px;
+      line-height: 1.8;
+      color: #aac;
+      z-index: 20;
+    }
+    #hud .val { color: #7ef; font-weight: bold; }
+    #hud .label { color: #556; }
+
+    #events {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      font-size: 10px;
+      text-align: right;
+      color: #446;
+      z-index: 20;
+      line-height: 1.6;
+    }
+    #events .flash { color: #fe8; }
+
+    #controls-hint {
+      width: 480px;
+      padding: 8px 12px;
+      background: #0d0d1a;
+      border: 1px solid #223;
+      border-top: none;
+      font-size: 10px;
+      color: #445;
+      display: flex;
+      gap: 20px;
+    }
+    #controls-hint span { color: #7ef; }
+  </style>
+</head>
+<body>
+
+  <div id="screen">
+    <canvas id="vis"></canvas>
+
+    <div id="hud">
+      <div><span class="label">SPEED  </span><span class="val" id="hud-speed">0</span> <span class="label">km/h</span></div>
+      <div><span class="label">SIZE   </span><span class="val" id="hud-size">1.00</span></div>
+      <div><span class="label">AMMO   </span><span class="val" id="hud-ammo">5</span></div>
+    </div>
+
+    <div id="events">
+      <div id="evt-fire"></div>
+      <div id="evt-hit"></div>
+    </div>
+  </div>
+
+  <div id="controls-hint">
+    <div><span>↑↓</span> speed</div>
+    <div><span>SPACE</span> fire</div>
+    <div><span>Z/X</span> size −/+</div>
+    <div><span>M</span> mute</div>
+  </div>
+
+<script>
+// ─────────────────────────────────────────────
+//  Audio Engine
+// ─────────────────────────────────────────────
+
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+
+// Master gain (mute toggle)
+const masterGain = AC.createGain();
+masterGain.gain.value = 0.7;
+masterGain.connect(AC.destination);
+
+// Compressor to avoid clipping when SFX stack
+const comp = AC.createDynamicsCompressor();
+comp.threshold.value = -6;
+comp.ratio.value = 4;
+comp.connect(masterGain);
+
+// ── Engine sound ──────────────────────────────
+// Two detuned square waves + low-pass, pitch follows speed
+const engineGain = AC.createGain();
+engineGain.gain.value = 0;
+engineGain.connect(comp);
+
+const engineLP = AC.createBiquadFilter();
+engineLP.type = 'lowpass';
+engineLP.frequency.value = 600;
+engineLP.Q.value = 2;
+engineLP.connect(engineGain);
+
+const osc1 = AC.createOscillator();
+osc1.type = 'square';
+osc1.frequency.value = 55;
+osc1.connect(engineLP);
+osc1.start();
+
+const osc2 = AC.createOscillator();
+osc2.type = 'square';
+osc2.frequency.value = 57; // slight detune for character
+osc2.connect(engineLP);
+osc2.start();
+
+// Sub rumble
+const oscSub = AC.createOscillator();
+oscSub.type = 'sawtooth';
+oscSub.frequency.value = 27;
+const subGain = AC.createGain();
+subGain.gain.value = 0.5;
+oscSub.connect(subGain);
+subGain.connect(engineGain);
+oscSub.start();
+
+/**
+ * Update engine tone from speed and size.
+ * size > 1 → lower, heavier pitch; size < 1 → higher, thinner pitch.
+ * sizePitch: size 0.3→ ×2.0 (tiny/shrill), size 3.0→ ×0.45 (huge/rumble)
+ */
+function updateEngine(speed, maxSpeed, size) {
+  const t = Math.max(0, speed) / maxSpeed;           // 0..1 speed ratio
+  // size pitch multiplier: inversely scaled — big = low, small = high
+  const sizePitch = Math.pow(1 / size, 0.75);        // smooth curve
+  const baseFreq  = (55 + t * 165) * sizePitch;
+  // filter: big engine = muddier (lower LP), small = brighter
+  const lp   = (400 + t * 2200) * (0.4 + 0.6 / size);
+  // small size → higher freq sounds perceptually louder, compensate slightly
+  // true exponential decay: size=1.0→1.0, size=0.5→0.22, size=0.3→0.05
+  const sizeGain = Math.min(1.0, Math.exp(5 * (size - 1)));
+  const gain = t < 0.01 ? 0 : (0.12 + t * 0.28) * sizeGain;
+
+  const now = AC.currentTime;
+  osc1.frequency.setTargetAtTime(baseFreq,        now, 0.12);
+  osc2.frequency.setTargetAtTime(baseFreq * 1.03, now, 0.12);
+  oscSub.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.15);
+  engineLP.frequency.setTargetAtTime(Math.min(lp, 8000), now, 0.1);
+  engineGain.gain.setTargetAtTime(gain, now, 0.08);
+}
+
+// ── Fire SFX ──────────────────────────────────
+// Short descending "pew" — two layers
+function playFire() {
+  const now = AC.currentTime;
+
+  // Layer 1: square blip, fast pitch drop
+  const g1 = AC.createGain();
+  g1.gain.setValueAtTime(0.35, now);
+  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  g1.connect(comp);
+
+  const o1 = AC.createOscillator();
+  o1.type = 'square';
+  o1.frequency.setValueAtTime(880, now);
+  o1.frequency.exponentialRampToValueAtTime(220, now + 0.14);
+  o1.connect(g1);
+  o1.start(now);
+  o1.stop(now + 0.2);
+
+  // Layer 2: noise burst (white noise via buffer)
+  const bufSize = AC.sampleRate * 0.05;
+  const buf = AC.createBuffer(1, bufSize, AC.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+  const noise = AC.createBufferSource();
+  noise.buffer = buf;
+
+  const noiseHP = AC.createBiquadFilter();
+  noiseHP.type = 'highpass';
+  noiseHP.frequency.value = 3000;
+
+  const ng = AC.createGain();
+  ng.gain.setValueAtTime(0.2, now);
+  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+  noise.connect(noiseHP);
+  noiseHP.connect(ng);
+  ng.connect(comp);
+  noise.start(now);
+  noise.stop(now + 0.06);
+}
+
+// ── Hit SFX ───────────────────────────────────
+// Metallic thud + pitched decay
+function playHit() {
+  const now = AC.currentTime;
+
+  // Impact thud: low triangle + sub click
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.5, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  g.connect(comp);
+
+  const o = AC.createOscillator();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(180, now);
+  o.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+  o.connect(g);
+  o.start(now);
+  o.stop(now + 0.4);
+
+  // Metallic ring: square at odd harmonic, fast decay
+  const g2 = AC.createGain();
+  g2.gain.setValueAtTime(0.25, now);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  g2.connect(comp);
+
+  const o2 = AC.createOscillator();
+  o2.type = 'square';
+  o2.frequency.setValueAtTime(540, now);
+  o2.frequency.exponentialRampToValueAtTime(120, now + 0.12);
+  o2.connect(g2);
+  o2.start(now);
+  o2.stop(now + 0.18);
+}
+
+// ─────────────────────────────────────────────
+//  BGM Sequencer
+// ─────────────────────────────────────────────
+
+const BPM   = 170;
+const S     = 60 / BPM / 4;   // 16th-note duration in seconds
+const AHEAD = 0.12;            // lookahead window
+const TICK  = 40;              // scheduler poll interval (ms)
+
+function hz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+const R = null;
+
+// ── Sequences: 32 steps = 2 bars of 4/4, C minor ──
+const BASS_SEQ = [
+  // bar 1: Cm → Abmaj
+  hz(36),R,  hz(48),R,  hz(43),R,  hz(43),R,
+  hz(44),R,  hz(44),R,  hz(51),R,  hz(43),R,
+  // bar 2: Fm → G
+  hz(41),R,  hz(41),R,  hz(48),R,  hz(48),R,
+  hz(43),R,  hz(43),R,  hz(43),R,  hz(43),R,
+];
+
+const MELODY_SEQ = [
+  // bar 1: descending run
+  hz(72),R,  hz(70),R,  hz(67),R,  hz(63),R,
+  hz(70),R,  hz(67),R,  hz(63),R,  hz(60),R,
+  // bar 2: ascending resolve
+  hz(67),R,  hz(68),R,  hz(70),R,  hz(72),R,
+  hz(70),R,  hz(67),R,  hz(65),R,  hz(63),R,
+];
+
+const ARP_SEQ = [
+  // bar 1 first half: Cm arpeggio (upper register)
+  hz(72), hz(75), hz(79), hz(75),  hz(72), hz(75), hz(79), hz(75),
+  // bar 1 second half: Ab
+  hz(68), hz(72), hz(75), hz(72),  hz(68), hz(72), hz(75), hz(72),
+  // bar 2 first half: Fm
+  hz(65), hz(68), hz(72), hz(68),  hz(65), hz(68), hz(72), hz(68),
+  // bar 2 second half: Gm
+  hz(67), hz(70), hz(74), hz(70),  hz(67), hz(70), hz(74), hz(70),
+];
+
+const KICK_SEQ  = [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,  1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0];
+const SNARE_SEQ = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+const HIHAT_SEQ = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0,  1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];
+
+// Shared noise buffer (reused for all percussion)
+const _noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+{ const d = _noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+
+// Per-layer gain nodes (size-based mix targets these)
+const bgmBass   = AC.createGain(); bgmBass.connect(comp);
+const bgmMelody = AC.createGain(); bgmMelody.connect(comp);
+const bgmArp    = AC.createGain(); bgmArp.connect(comp);
+const bgmKick   = AC.createGain(); bgmKick.connect(comp);
+const bgmSnare  = AC.createGain(); bgmSnare.connect(comp);
+const bgmHihat  = AC.createGain(); bgmHihat.connect(comp);
+
+bgmBass.gain.value   = 0.31;  // size=1.0 기준 초기값
+bgmMelody.gain.value = 0.30;
+bgmArp.gain.value    = 0.07;
+bgmKick.gain.value   = 0.27;
+bgmSnare.gain.value  = 0.18;
+bgmHihat.gain.value  = 0.16;
+
+// Duration of a note: sustain until next non-null (capped at maxSteps)
+function noteDur(seq, step, maxSteps) {
+  let count = 1;
+  while (count < maxSteps && seq[(step + count) % seq.length] === null) count++;
+  return count * S * 0.93;
+}
+
+function schedBass(t, freq, dur) {
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 280;
+  const g  = AC.createGain();
+  g.gain.setValueAtTime(1.0, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq;
+  o.connect(lp); lp.connect(g); g.connect(bgmBass);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+
+function schedMelody(t, freq, dur) {
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.8, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  const o = AC.createOscillator(); o.type = 'square';
+  o.frequency.value = freq * _melodyPitch;  // dynamic octave shift
+  o.connect(g); g.connect(bgmMelody);
+  o.start(t); o.stop(t + dur + 0.01);
+}
+
+function schedArp(t, freq) {
+  const dur = S * 0.52;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.7, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  const o = AC.createOscillator(); o.type = 'square'; o.frequency.value = freq;
+  o.connect(g); g.connect(bgmArp);
+  o.start(t); o.stop(t + dur + 0.01);
+}
+
+function schedKick(t) {
+  const g = AC.createGain();
+  g.gain.setValueAtTime(1.0, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+  const o = AC.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(160, t);
+  o.frequency.exponentialRampToValueAtTime(35, t + 0.2);
+  o.connect(g); g.connect(bgmKick);
+  o.start(t); o.stop(t + 0.28);
+}
+
+function schedSnare(t) {
+  const ns = AC.createBufferSource(); ns.buffer = _noiseBuf;
+  const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2000; bp.Q.value = 0.8;
+  const ng = AC.createGain();
+  ng.gain.setValueAtTime(0.9, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  ns.connect(bp); bp.connect(ng); ng.connect(bgmSnare);
+  ns.start(t); ns.stop(t + 0.14);
+  // tone click
+  const o = AC.createOscillator(); o.type = 'triangle';
+  o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(80, t + 0.08);
+  const og = AC.createGain();
+  og.gain.setValueAtTime(0.45, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  o.connect(og); og.connect(bgmSnare);
+  o.start(t); o.stop(t + 0.1);
+}
+
+function schedHihat(t) {
+  const ns = AC.createBufferSource(); ns.buffer = _noiseBuf;
+  const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000;
+  const g  = AC.createGain();
+  g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+  ns.connect(hp); hp.connect(g); g.connect(bgmHihat);
+  ns.start(t); ns.stop(t + 0.04);
+}
+
+let _step = 0, _nextT = 0, _seqTid = null, _bgmOn = false;
+let _melodyPitch = 1.0;  // dynamic octave multiplier, updated per frame
+
+function _runSeq() {
+  while (_nextT < AC.currentTime + AHEAD) {
+    const i = _step % 32;
+    const t = _nextT;
+    if (BASS_SEQ[i])   schedBass(t, BASS_SEQ[i], noteDur(BASS_SEQ, i, 4));
+    if (MELODY_SEQ[i]) schedMelody(t, MELODY_SEQ[i], noteDur(MELODY_SEQ, i, 4));
+    schedArp(t, ARP_SEQ[i]);
+    if (KICK_SEQ[i])   schedKick(t);
+    if (SNARE_SEQ[i])  schedSnare(t);
+    if (HIHAT_SEQ[i])  schedHihat(t);
+    _step++;
+    _nextT += S;
+  }
+  _seqTid = setTimeout(_runSeq, TICK);
+}
+
+function startBGM() {
+  if (_bgmOn) return;
+  _bgmOn = true;
+  _step = 0; _nextT = AC.currentTime + 0.05;
+  _runSeq();
+}
+
+// Size → mix: big = bass/kick up, arp/hihat down; small = opposite
+function updateBGMMix(size) {
+  const t   = (size - SIZE_MIN) / (SIZE_MAX - SIZE_MIN); // 0..1
+  const now = AC.currentTime;
+  const tau = 0.35;
+  // Melody octave: size=0.3 → ×2.0(+1oct), size=1.0 → ×1.0, size=3.0 → ×0.5(−1oct)
+  _melodyPitch = Math.pow(2, Math.max(-1, Math.min(1, (1.0 - size) * 0.75)));
+
+  bgmBass.gain.setTargetAtTime(  0.02 + t * 0.60, now, tau);  // 0.02 → 0.62
+  bgmKick.gain.setTargetAtTime(  0.05 + t * 0.45, now, tau);  // 0.05 → 0.50
+  bgmArp.gain.setTargetAtTime(   0.12 - t * 0.10, now, tau);  // 0.12 → 0.02
+  bgmHihat.gain.setTargetAtTime( 0.28 - t * 0.23, now, tau);  // 0.28 → 0.05
+  bgmMelody.gain.setTargetAtTime(0.38 - t * 0.16, now, tau);  // 0.38(small) → 0.22(large)
+  bgmSnare.gain.setTargetAtTime( 0.18,             now, tau);
+}
+
+// ─────────────────────────────────────────────
+//  Game state  (virtual — no 3D)
+// ─────────────────────────────────────────────
+
+const MAX_SPEED = 200;   // km/h
+const ACCEL     = 40;    // km/h per second
+const BRAKE     = 80;
+const DRAG      = 15;
+const SIZE_MIN  = 0.3;
+const SIZE_MAX  = 3.0;
+const SIZE_RATE = 1.5;   // units per second (continuous)
+
+let speed  = 0;
+let size   = 1.0;
+let muted  = false;
+
+const keys = {};
+window.addEventListener('keydown', e => {
+  if (keys[e.code]) return;
+  keys[e.code] = true;
+
+  // Resume AC and start BGM on first interaction
+  if (AC.state === 'suspended') AC.resume();
+  startBGM();
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    playFire();
+    spawnProjectile();
+    showEvent('evt-fire', 'FIRE!');
+    setTimeout(() => {
+      playHit();
+      showEvent('evt-hit', 'HIT!');
+    }, 500 + Math.random() * 500);
+  }
+
+  if (e.code === 'KeyM') {
+    muted = !muted;
+    masterGain.gain.setTargetAtTime(muted ? 0 : 0.7, AC.currentTime, 0.05);
+  }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ─────────────────────────────────────────────
+//  Event flash helper
+// ─────────────────────────────────────────────
+const flashTimers = {};
+function showEvent(id, text) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.add('flash');
+  clearTimeout(flashTimers[id]);
+  flashTimers[id] = setTimeout(() => {
+    el.textContent = '';
+    el.classList.remove('flash');
+  }, 600);
+}
+
+// ─────────────────────────────────────────────
+//  Visualizer — oscilloscope + "road" feel
+// ─────────────────────────────────────────────
+
+const canvas = document.getElementById('vis');
+const ctx    = canvas.getContext('2d');
+
+// Analyser for waveform display
+const analyser = AC.createAnalyser();
+analyser.fftSize = 256;
+analyser.smoothingTimeConstant = 0.7;
+masterGain.connect(analyser); // tap after master
+
+const waveData = new Uint8Array(analyser.fftSize);
+const freqData = new Uint8Array(analyser.frequencyBinCount);
+
+// Projectile particles
+const particles = [];
+
+function spawnProjectile() {
+  particles.push({
+    x: canvas.width * 0.5,
+    y: canvas.height * 0.6,
+    vx: (Math.random() - 0.5) * 2,
+    vy: -(4 + Math.random() * 3),
+    life: 1,
+    type: 'bullet'
+  });
+}
+
+function resize() {
+  canvas.width  = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─────────────────────────────────────────────
+//  Game loop
+// ─────────────────────────────────────────────
+
+let last = performance.now();
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+
+  // ── Physics ──
+  if (keys['ArrowUp'] || keys['KeyW']) {
+    speed = Math.min(MAX_SPEED * size, speed + ACCEL * dt);
+  } else if (keys['ArrowDown'] || keys['KeyS']) {
+    speed = Math.max(0, speed - BRAKE * dt);
+  } else {
+    speed = Math.max(0, speed - DRAG * dt);
+  }
+
+  // ── Size (continuous) ──
+  if (keys['KeyZ']) size = Math.max(SIZE_MIN, size - SIZE_RATE * dt);
+  if (keys['KeyX']) size = Math.min(SIZE_MAX, size + SIZE_RATE * dt);
+
+  // ── Audio update ──
+  updateEngine(speed, MAX_SPEED * size, size);
+  updateBGMMix(size);
+
+  // ── HUD ──
+  document.getElementById('hud-speed').textContent = Math.round(speed);
+  document.getElementById('hud-size').textContent  = size.toFixed(2);
+  document.getElementById('hud-ammo').textContent  = '∞';
+
+  // ── Draw ──
+  draw(dt);
+}
+
+function draw(dt) {
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // Background
+  ctx.fillStyle = '#111122';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Road stripes (speed illusion) ──
+  const stripeSpeed = speed / MAX_SPEED;
+  const t = performance.now() * 0.001;
+  const roadY = H * 0.6;
+  ctx.strokeStyle = '#334';
+  ctx.lineWidth = 1;
+  // horizon lines
+  for (let i = 0; i < 8; i++) {
+    const frac = i / 8;
+    const yy = roadY + (H - roadY) * frac;
+    const alpha = frac * 0.6;
+    ctx.strokeStyle = `rgba(50,60,90,${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(0, yy);
+    ctx.lineTo(W, yy);
+    ctx.stroke();
+  }
+  // dashes
+  const dashOffset = (t * stripeSpeed * 400) % 60;
+  ctx.setLineDash([20, 40]);
+  ctx.lineDashOffset = -dashOffset;
+  ctx.strokeStyle = `rgba(80,120,200,${0.2 + stripeSpeed * 0.4})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(W * 0.5, roadY + 10);
+  ctx.lineTo(W * 0.5, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Car (size-scaled pixel rectangle) ──
+  const carW  = Math.round(24 * size);
+  const carH  = Math.round(14 * size);
+  const carX  = W * 0.5 - carW / 2;
+  const carY  = H * 0.62 - carH;
+  // body
+  ctx.fillStyle = '#2a5fc4';
+  ctx.fillRect(carX, carY, carW, carH);
+  // cockpit
+  ctx.fillStyle = '#4af';
+  const cpW = Math.round(carW * 0.4);
+  const cpH = Math.round(carH * 0.45);
+  ctx.fillRect(carX + (carW - cpW) / 2, carY, cpW, cpH);
+  // wheels
+  ctx.fillStyle = '#111';
+  const wW = Math.max(3, Math.round(carW * 0.18));
+  const wH = Math.max(3, Math.round(carH * 0.35));
+  ctx.fillRect(carX - wW + 1, carY + carH - wH - 1, wW, wH);
+  ctx.fillRect(carX + carW - 1, carY + carH - wH - 1, wW, wH);
+  ctx.fillRect(carX - wW + 1, carY + 2, wW, wH);
+  ctx.fillRect(carX + carW - 1, carY + 2, wW, wH);
+
+  // ── Exhaust particles when accelerating ──
+  if (keys['ArrowUp'] || keys['KeyW']) {
+    if (Math.random() < 0.5) {
+      particles.push({
+        x: carX + carW * 0.5 + (Math.random() - 0.5) * 4,
+        y: carY + carH + 2,
+        vx: (Math.random() - 0.5),
+        vy: 1.5 + Math.random() * 2,
+        life: 1,
+        type: 'exhaust'
+      });
+    }
+  }
+
+  // ── Particles ──
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= dt * (p.type === 'bullet' ? 1.2 : 2.5);
+
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+    if (p.type === 'bullet') {
+      const r = Math.max(1, 3 * size * p.life);
+      ctx.fillStyle = `rgba(255,220,80,${p.life})`;
+      ctx.fillRect(p.x - r / 2, p.y - r / 2, r, r);
+    } else {
+      const r = 2 * p.life;
+      ctx.fillStyle = `rgba(80,60,40,${p.life * 0.6})`;
+      ctx.fillRect(p.x, p.y, r, r);
+    }
+  }
+
+  // ── Waveform oscilloscope (bottom strip) ──
+  analyser.getByteTimeDomainData(waveData);
+  const oscH   = 28;
+  const oscY   = H - oscH - 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, oscY, W, oscH);
+
+  ctx.strokeStyle = '#3af';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const sliceW = W / waveData.length;
+  for (let i = 0; i < waveData.length; i++) {
+    const v  = waveData[i] / 128 - 1;
+    const xx = i * sliceW;
+    const yy = oscY + oscH / 2 + v * oscH * 0.45;
+    i === 0 ? ctx.moveTo(xx, yy) : ctx.lineTo(xx, yy);
+  }
+  ctx.stroke();
+
+  // ── Freq bars (right side) ──
+  analyser.getByteFrequencyData(freqData);
+  const barW   = 4;
+  const barGap = 2;
+  const barCount = Math.min(16, Math.floor((W * 0.15) / (barW + barGap)));
+  const barX0  = W - barCount * (barW + barGap) - 4;
+  for (let i = 0; i < barCount; i++) {
+    const idx = Math.floor(i * freqData.length / (barCount * 4));
+    const v   = freqData[idx] / 255;
+    const bh  = Math.max(1, v * (H * 0.25));
+    const hue = 180 + i * 8;
+    ctx.fillStyle = `hsl(${hue},70%,${40 + v * 40}%)`;
+    ctx.fillRect(barX0 + i * (barW + barGap), oscY - bh, barW, bh);
+  }
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
