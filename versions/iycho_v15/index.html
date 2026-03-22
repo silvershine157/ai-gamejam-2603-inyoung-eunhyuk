@@ -1,0 +1,3989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>iycho_v15 - Phase 3 Static Obstacles</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; }
+    canvas { display: block; }
+    #hud {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      color: #fff;
+      font-family: monospace;
+      font-size: 13px;
+      background: rgba(0, 0, 0, 0.52);
+      padding: 10px 16px;
+      border-radius: 8px;
+      line-height: 2;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      min-width: 230px;
+    }
+    #hud .label { color: #7d8796; }
+    #hud .val { color: #8bc7ff; font-weight: bold; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .bar-bg {
+      flex: 1;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.1s, background 0.1s;
+    }
+    #ammo-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+    }
+    #ammo-bullets {
+      display: flex;
+      gap: 4px;
+    }
+    .bullet {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ffdd44;
+      box-shadow: 0 0 5px #ffaa00;
+      transition: background 0.1s, box-shadow 0.1s;
+    }
+    .bullet.empty {
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: none;
+    }
+    #ammo-charge-bg {
+      flex: 1;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #ammo-charge-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: #ffdd44;
+      width: 0%;
+      transition: width 0.05s;
+    }
+    #msg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: monospace;
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.66);
+      padding: 14px 28px;
+      border-radius: 10px;
+      pointer-events: none;
+      display: none;
+    }
+    #countdown {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+      font-size: clamp(42px, 12vw, 110px);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #f7fbff;
+      text-shadow: 0 0 30px rgba(126, 184, 247, 0.35);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+    #countdown.visible {
+      opacity: 1;
+    }
+    #size-indicator {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: monospace;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      text-align: center;
+      pointer-events: none;
+    }
+    #size-indicator .size-val {
+      display: block;
+      font-size: 26px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+    }
+    #minimap-hud {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 226px;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.56);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      pointer-events: none;
+      color: #d7e5f7;
+      font-family: monospace;
+      box-sizing: border-box;
+    }
+    #minimap-title {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      color: #89bfff;
+    }
+    #minimap {
+      display: block;
+      width: 206px;
+      height: 206px;
+      border-radius: 6px;
+      background: rgba(8, 18, 28, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    #map-menu {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4, 8, 14, 0.6);
+      backdrop-filter: blur(8px);
+      z-index: 5;
+    }
+    #map-menu.hidden {
+      display: none;
+    }
+    #map-menu-panel {
+      width: min(640px, calc(100vw - 32px));
+      background: rgba(7, 14, 24, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 22px;
+      color: #f4f7fb;
+      font-family: monospace;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    }
+    #map-menu-title {
+      font-size: 22px;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+      color: #89bfff;
+    }
+    #map-menu-copy {
+      font-size: 13px;
+      line-height: 1.7;
+      color: #9db2c8;
+      margin-bottom: 16px;
+    }
+    #map-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .map-option {
+      text-align: left;
+      padding: 14px 14px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(18, 29, 43, 0.88);
+      color: #e7eef8;
+      cursor: pointer;
+    }
+    .map-option:hover {
+      border-color: rgba(126, 184, 247, 0.55);
+      background: rgba(22, 40, 61, 0.96);
+    }
+    .map-option-title {
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: #d9ecff;
+    }
+    .map-option-copy {
+      font-size: 12px;
+      line-height: 1.65;
+      color: #9db2c8;
+      min-height: 58px;
+    }
+    #panel-toggle {
+      position: absolute;
+      top: 248px;
+      right: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #aaa;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.15s, border-color 0.15s;
+      z-index: 10;
+    }
+    #panel-toggle:hover {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+    #panel {
+      position: absolute;
+      top: 280px;
+      right: 12px;
+      width: 280px;
+      max-height: calc(100vh - 292px);
+      overflow-y: auto;
+      background: rgba(10, 10, 16, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #ccc;
+      padding: 0 0 8px 0;
+      z-index: 9;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+    #panel.hidden {
+      display: none;
+    }
+    .panel-section {
+      padding: 8px 14px 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .panel-section:last-child {
+      border-bottom: none;
+    }
+    .panel-section-title {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 6px;
+    }
+    .param-row {
+      display: grid;
+      grid-template-columns: 108px 1fr 40px 46px;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+    .param-row label {
+      color: #888;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .param-row input[type=range] {
+      width: 100%;
+      height: 4px;
+      appearance: none;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    .param-row input[type=range]::-webkit-slider-thumb {
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #7eb8f7;
+      cursor: pointer;
+    }
+    .param-row .pval {
+      color: #7eb8f7;
+      font-weight: bold;
+      text-align: right;
+      font-size: 11px;
+    }
+    .pdiff {
+      font-size: 10px;
+      font-weight: bold;
+      text-align: right;
+      white-space: nowrap;
+      min-width: 46px;
+    }
+    .panel-footer {
+      padding: 8px 14px 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .footer-btn-row {
+      display: flex;
+      gap: 6px;
+    }
+    #json-area {
+      width: 100%;
+      height: 72px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      color: #7eb8f7;
+      font-family: monospace;
+      font-size: 10px;
+      padding: 6px;
+      resize: vertical;
+      outline: none;
+    }
+    #json-area::placeholder {
+      color: #444;
+    }
+    #json-status {
+      font-size: 10px;
+      text-align: center;
+      min-height: 13px;
+    }
+    .panel-btn {
+      flex: 1;
+      padding: 6px 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      color: #888;
+      font-family: monospace;
+      font-size: 11px;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .panel-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    .panel-btn.accent {
+      border-color: rgba(100, 180, 255, 0.3);
+      color: #7eb8f7;
+    }
+    .panel-btn.accent:hover {
+      background: rgba(100, 180, 255, 0.1);
+      color: #aad4ff;
+    }
+    #debug-hud {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      min-width: 260px;
+      max-width: 340px;
+      padding: 10px 12px;
+      background: rgba(4, 10, 18, 0.78);
+      border: 1px solid rgba(126, 184, 247, 0.18);
+      border-radius: 8px;
+      color: #bfd0e6;
+      font-family: monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      pointer-events: none;
+      display: none;
+      z-index: 12;
+    }
+    #debug-hud.visible {
+      display: block;
+    }
+    #debug-hud .label {
+      color: #74859a;
+    }
+    #debug-hud .val {
+      color: #8bc7ff;
+      font-weight: bold;
+    }
+    #debug-label-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 11;
+    }
+    .debug-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      padding: 3px 6px;
+      border-radius: 5px;
+      background: rgba(6, 10, 18, 0.82);
+      border: 1px solid rgba(255, 170, 64, 0.3);
+      color: #ffd08c;
+      font-family: monospace;
+      font-size: 10px;
+      white-space: nowrap;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div><span class="label">SPEED  </span><span class="val" id="spd">0</span> <span class="label">km/h</span></div>
+    <div><span class="label">LAPS   </span><span class="val" id="laps">0</span></div>
+    <div><span class="label">BEST   </span><span class="val" id="best">--:--</span></div>
+    <div><span class="label">OFFROAD</span><span class="val" id="offroad">0.0</span> <span class="label">s</span></div>
+    <div><span class="label">RANK   </span><span class="val" id="rank">1 / 4</span></div>
+    <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
+    <div class="bar-row">
+      <span class="label" style="width:42px">SIZE</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-size" style="width:38%;background:#aad4ff"></div></div>
+      <span class="val" id="val-size">1.00x</span>
+    </div>
+    <div class="bar-row">
+      <span class="label" style="width:42px">HP</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width:38%;background:#66dd88"></div></div>
+      <span class="val" id="val-hp">100</span>
+    </div>
+    <div class="bar-row">
+      <span class="label" style="width:42px">ATK</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-atk" style="width:38%;background:#ff9944"></div></div>
+      <span class="val" id="val-atk">100</span>
+    </div>
+    <div class="bar-row">
+      <span class="label" style="width:42px">TURN</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-turn" style="width:38%;background:#cc88ff"></div></div>
+      <span class="val" id="val-turn">100</span>
+    </div>
+    <div><span class="label">SCORE  </span><span class="val" id="score">0</span><span class="label" id="score-total"></span></div>
+    <div id="ammo-row">
+      <span class="label" style="width:42px;flex-shrink:0">AMMO</span>
+      <div id="ammo-bullets"></div>
+      <div id="ammo-charge-bg"><div id="ammo-charge-fill"></div></div>
+    </div>
+    <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
+    <div><span class="label">X/Z   </span>grow / shrink</div>
+    <div><span class="label">WASD  </span>drive</div>
+    <div><span class="label">SPACE </span>fire</div>
+    <div><span class="label">TAB   </span>params</div>
+    <div><span class="label">F2/F4/F7</span>debug</div>
+  </div>
+  <div id="msg"></div>
+  <div id="countdown"></div>
+  <div id="size-indicator">
+    <span class="size-val" id="size-label">NORMAL</span>
+  </div>
+  <div id="minimap-hud">
+    <div id="minimap-title">MINIMAP</div>
+    <canvas id="minimap" width="206" height="206"></canvas>
+  </div>
+  <button id="panel-toggle">Params</button>
+  <div id="panel" class="hidden"></div>
+  <div id="debug-hud">
+    <div><span class="label">F2</span> solid colliders  <span class="label">F3</span> triggers  <span class="label">F4</span> labels  <span class="label">F7</span> anchors</div>
+    <div><span class="label">OBSTACLES</span> <span class="val" id="debug-obstacle-count">0</span></div>
+    <div><span class="label">LAST HIT</span> <span class="val" id="debug-last-obstacle">none</span></div>
+    <div><span class="label">PLAYER</span> <span class="val" id="debug-player-obstacle-state">idle</span></div>
+  </div>
+  <div id="debug-label-layer"></div>
+  <div id="map-menu">
+    <div id="map-menu-panel">
+      <div id="map-menu-title">SELECT MAP</div>
+      <div id="map-menu-copy">Start with the classic oval or switch to a smoother grand prix loop with placed static blockers that already use the Phase 3 obstacle runtime.</div>
+      <div id="map-options">
+        <button class="map-option" data-map="oval">
+          <div class="map-option-title">Oval Circuit</div>
+          <div class="map-option-copy">High-speed test loop. Wall sections on the straights and broad runoff elsewhere.</div>
+        </button>
+        <button class="map-option" data-map="grandprix">
+          <div class="map-option-title">Grand Prix Hairpin</div>
+          <div class="map-option-copy">Spline main loop with a broad concave hairpin and cleaner spectator placement beside the road.</div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.163.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    document.title = 'iycho_v15 - Phase 3 Static Obstacles';
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const requestedMapId = searchParams.get('map');
+    let controlsEnabled = false;
+
+    const WORLD_UP = new THREE.Vector3(0, 1, 0);
+    const LOCAL_FORWARD = new THREE.Vector3(0, 0, 1);
+    const LOCAL_UP = new THREE.Vector3(0, 1, 0);
+
+    const tempRight = new THREE.Vector3();
+    const tempUp = new THREE.Vector3();
+    const tempForward = new THREE.Vector3();
+    const tempA = new THREE.Vector3();
+    const tempB = new THREE.Vector3();
+    const tempC = new THREE.Vector3();
+    const tempD = new THREE.Vector3();
+    const tempE = new THREE.Vector3();
+    const tempF = new THREE.Vector3();
+    const tempH = new THREE.Vector3();
+    const tempI = new THREE.Vector3();
+    const tempJ = new THREE.Vector3();
+    const tempG = new THREE.Vector2();
+    const tempMatrix = new THREE.Matrix4();
+    const tempQuatA = new THREE.Quaternion();
+    const tempQuatB = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+
+    function wrap01(value) {
+      return ((value % 1) + 1) % 1;
+    }
+
+    function clamp01(value) {
+      return Math.max(0, Math.min(1, value));
+    }
+
+    function wrapProgressDelta(delta) {
+      if (delta > 0.5) return delta - 1;
+      if (delta < -0.5) return delta + 1;
+      return delta;
+    }
+
+    function regularizeClosedPoints(points, passes = 2, blend = 0.2) {
+      let current = points.map((point) => point.clone());
+      for (let pass = 0; pass < passes; pass++) {
+        current = current.map((point, index) => {
+          const prev = current[(index - 1 + current.length) % current.length];
+          const next = current[(index + 1) % current.length];
+          const average = prev.clone().add(next).multiplyScalar(0.5);
+          return point.clone().lerp(average, blend);
+        });
+      }
+      return current;
+    }
+
+    function signedArea2D(a, b, c) {
+      return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+    }
+
+    function onSegment2D(a, b, p, epsilon = 1e-5) {
+      return (
+        Math.min(a.x, b.x) - epsilon <= p.x &&
+        p.x <= Math.max(a.x, b.x) + epsilon &&
+        Math.min(a.z, b.z) - epsilon <= p.z &&
+        p.z <= Math.max(a.z, b.z) + epsilon
+      );
+    }
+
+    function segmentsIntersect2D(a, b, c, d) {
+      const abC = signedArea2D(a, b, c);
+      const abD = signedArea2D(a, b, d);
+      const cdA = signedArea2D(c, d, a);
+      const cdB = signedArea2D(c, d, b);
+
+      if (
+        ((abC > 0 && abD < 0) || (abC < 0 && abD > 0)) &&
+        ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0))
+      ) {
+        return true;
+      }
+
+      if (Math.abs(abC) < 1e-5 && onSegment2D(a, b, c)) return true;
+      if (Math.abs(abD) < 1e-5 && onSegment2D(a, b, d)) return true;
+      if (Math.abs(cdA) < 1e-5 && onSegment2D(c, d, a)) return true;
+      if (Math.abs(cdB) < 1e-5 && onSegment2D(c, d, b)) return true;
+      return false;
+    }
+
+    function findClosedPolylineIntersections(points) {
+      const intersections = [];
+      const count = points.length;
+      for (let i = 0; i < count; i++) {
+        const a = points[i];
+        const b = points[(i + 1) % count];
+        for (let j = i + 1; j < count; j++) {
+          if (Math.abs(i - j) <= 1) continue;
+          if (i === 0 && j === count - 1) continue;
+          const c = points[j];
+          const d = points[(j + 1) % count];
+          if (segmentsIntersect2D(a, b, c, d)) {
+            intersections.push([i, j]);
+          }
+        }
+      }
+      return intersections;
+    }
+
+    function setQuaternionFromForwardUp(target, forward, up = WORLD_UP) {
+      tempForward.copy(forward).normalize();
+      tempRight.crossVectors(up, tempForward).normalize();
+      tempUp.crossVectors(tempForward, tempRight).normalize();
+      tempMatrix.makeBasis(tempRight, tempUp, tempForward);
+      target.setFromRotationMatrix(tempMatrix);
+      return target;
+    }
+
+    function addTriangle(positions, normals, a, b, c) {
+      positions.push(
+        a.x, a.y, a.z,
+        b.x, b.y, b.z,
+        c.x, c.y, c.z
+      );
+      for (let i = 0; i < 3; i++) {
+        normals.push(0, 1, 0);
+      }
+    }
+
+    class OvalCenterlineCurve extends THREE.Curve {
+      constructor(radius, straightHalfLength) {
+        super();
+        this.radius = radius;
+        this.straightHalfLength = straightHalfLength;
+        this.straightLength = straightHalfLength * 2;
+        this.arcLength = Math.PI * radius;
+        this.totalLength = this.straightLength * 2 + this.arcLength * 2;
+      }
+
+      getPoint(t, target = new THREE.Vector3()) {
+        const s = wrap01(t) * this.totalLength;
+
+        if (s < this.straightLength) {
+          return target.set(this.radius, 0, -this.straightHalfLength + s);
+        }
+
+        if (s < this.straightLength + this.arcLength) {
+          const arcS = s - this.straightLength;
+          const angle = arcS / this.radius;
+          return target.set(
+            Math.cos(angle) * this.radius,
+            0,
+            this.straightHalfLength + Math.sin(angle) * this.radius
+          );
+        }
+
+        if (s < this.straightLength * 2 + this.arcLength) {
+          const straightS = s - this.straightLength - this.arcLength;
+          return target.set(-this.radius, 0, this.straightHalfLength - straightS);
+        }
+
+        const arcS = s - this.straightLength * 2 - this.arcLength;
+        const angle = Math.PI + arcS / this.radius;
+        return target.set(
+          Math.cos(angle) * this.radius,
+          0,
+          -this.straightHalfLength + Math.sin(angle) * this.radius
+        );
+      }
+
+      getTangent(t, target = new THREE.Vector3()) {
+        const s = wrap01(t) * this.totalLength;
+
+        if (s < this.straightLength) {
+          return target.set(0, 0, 1);
+        }
+
+        if (s < this.straightLength + this.arcLength) {
+          const arcS = s - this.straightLength;
+          const angle = arcS / this.radius;
+          return target.set(-Math.sin(angle), 0, Math.cos(angle)).normalize();
+        }
+
+        if (s < this.straightLength * 2 + this.arcLength) {
+          return target.set(0, 0, -1);
+        }
+
+        const arcS = s - this.straightLength * 2 - this.arcLength;
+        const angle = Math.PI + arcS / this.radius;
+        return target.set(-Math.sin(angle), 0, Math.cos(angle)).normalize();
+      }
+
+      getPointAt(u, target = new THREE.Vector3()) {
+        return this.getPoint(u, target);
+      }
+
+      getTangentAt(u, target = new THREE.Vector3()) {
+        return this.getTangent(u, target);
+      }
+    }
+
+    class CurveRoad {
+      constructor({ curve, width, sampleCount = 240, wallRanges = [], closed = true }) {
+        this.curve = curve;
+        this.width = width;
+        this.halfWidth = width * 0.5;
+        this.sampleCount = sampleCount;
+        this.wallRanges = wallRanges;
+        this.closed = closed;
+        this.frames = [];
+        this.length = 0;
+        this.resample();
+      }
+
+      resample() {
+        this.frames = [];
+        this.length = 0;
+
+        let previousPoint = null;
+        for (let i = 0; i < this.sampleCount; i++) {
+          const t = i / this.sampleCount;
+          const point = this.curve.getPointAt(t, new THREE.Vector3());
+          const tangent = this.curve.getTangentAt(t, new THREE.Vector3()).normalize();
+          const right = new THREE.Vector3().crossVectors(tangent, WORLD_UP).normalize();
+
+          if (previousPoint) {
+            this.length += previousPoint.distanceTo(point);
+          }
+
+          this.frames.push({ t, point, tangent, right });
+          previousPoint = point;
+        }
+
+        if (this.closed) {
+          this.length += this.frames[this.frames.length - 1].point.distanceTo(this.frames[0].point);
+        }
+      }
+
+      getFrameAt(t) {
+        const point = this.curve.getPointAt(wrap01(t), new THREE.Vector3());
+        const tangent = this.curve.getTangentAt(wrap01(t), new THREE.Vector3()).normalize();
+        const right = new THREE.Vector3().crossVectors(tangent, WORLD_UP).normalize();
+        return { point, tangent, right, t: wrap01(t) };
+      }
+
+      inRange(t, start, end) {
+        if (!this.closed) {
+          return t >= start && t <= end;
+        }
+        const wrapped = wrap01(t);
+        const a = wrap01(start);
+        const b = wrap01(end);
+        if (a <= b) return wrapped >= a && wrapped <= b;
+        return wrapped >= a || wrapped <= b;
+      }
+
+      getWallConfigAt(t) {
+        const config = { left: false, right: false };
+        for (const range of this.wallRanges) {
+          if (!this.inRange(t, range.start, range.end)) continue;
+          config.left = config.left || !!range.left;
+          config.right = config.right || !!range.right;
+        }
+        return config;
+      }
+
+      projectPoint(point) {
+        let bestDistanceSq = Infinity;
+        let bestT = 0;
+        const bestPoint = new THREE.Vector3();
+        const bestTangent = new THREE.Vector3();
+        const bestRight = new THREE.Vector3();
+
+        const px = point.x;
+        const pz = point.z;
+
+        const segmentCount = this.closed ? this.frames.length : this.frames.length - 1;
+        for (let i = 0; i < segmentCount; i++) {
+          const a = this.frames[i];
+          const b = this.closed ? this.frames[(i + 1) % this.frames.length] : this.frames[i + 1];
+          const vx = b.point.x - a.point.x;
+          const vz = b.point.z - a.point.z;
+          const lenSq = vx * vx + vz * vz;
+          if (lenSq === 0) continue;
+
+          const apx = px - a.point.x;
+          const apz = pz - a.point.z;
+          const u = clamp01((apx * vx + apz * vz) / lenSq);
+          const cx = a.point.x + vx * u;
+          const cz = a.point.z + vz * u;
+          const dx = px - cx;
+          const dz = pz - cz;
+          const distSq = dx * dx + dz * dz;
+
+          if (distSq >= bestDistanceSq) continue;
+
+          bestDistanceSq = distSq;
+          bestPoint.set(cx, 0, cz);
+          bestTangent.set(vx, 0, vz).normalize();
+          bestRight.crossVectors(bestTangent, WORLD_UP).normalize();
+          const normalized = segmentCount <= 0 ? 0 : (i + u) / segmentCount;
+          bestT = this.closed ? wrap01(normalized) : clamp01(normalized);
+        }
+
+        return {
+          distanceSq: bestDistanceSq,
+          closestPoint: bestPoint,
+          tangent: bestTangent,
+          right: bestRight,
+          t: bestT,
+        };
+      }
+
+      containsPoint(point, margin = 0) {
+        const radius = this.halfWidth - margin;
+        if (radius <= 0) return false;
+        const projection = this.projectPoint(point);
+        return projection.distanceSq <= radius * radius;
+      }
+
+      buildSurface(scene) {
+        const positions = [];
+        const normals = [];
+
+        const segmentCount = this.closed ? this.frames.length : this.frames.length - 1;
+        for (let i = 0; i < segmentCount; i++) {
+          const a = this.frames[i];
+          const b = this.closed ? this.frames[(i + 1) % this.frames.length] : this.frames[i + 1];
+
+          const leftA = a.point.clone().addScaledVector(a.right, -this.halfWidth);
+          const rightA = a.point.clone().addScaledVector(a.right, this.halfWidth);
+          const leftB = b.point.clone().addScaledVector(b.right, -this.halfWidth);
+          const rightB = b.point.clone().addScaledVector(b.right, this.halfWidth);
+
+          addTriangle(positions, normals, leftA, rightA, leftB);
+          addTriangle(positions, normals, rightA, rightB, leftB);
+        }
+
+        const roadGeo = new THREE.BufferGeometry();
+        roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        roadGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+
+        const roadMesh = new THREE.Mesh(
+          roadGeo,
+          new THREE.MeshLambertMaterial({ color: 0x303030 })
+        );
+        roadMesh.receiveShadow = true;
+        scene.add(roadMesh);
+
+        const dashMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        const dashLength = 2.6;
+        const dashSpacing = 7.5;
+        const dashCount = Math.floor(this.length / dashSpacing);
+        for (let i = 0; i < dashCount; i++) {
+          const t = wrap01((i * dashSpacing + dashSpacing * 0.5) / this.length);
+          const frame = this.getFrameAt(t);
+          const dash = new THREE.Mesh(
+            new THREE.BoxGeometry(0.24, 0.02, dashLength),
+            dashMat
+          );
+          dash.position.copy(frame.point).setY(0.02);
+          setQuaternionFromForwardUp(dash.quaternion, frame.tangent, WORLD_UP);
+          scene.add(dash);
+        }
+      }
+
+      buildFinishLine(scene, t = 0) {
+        const frame = this.getFrameAt(t);
+        const finish = new THREE.Mesh(
+          new THREE.BoxGeometry(this.width, 0.02, 1.2),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        finish.position.copy(frame.point).setY(0.03);
+        setQuaternionFromForwardUp(finish.quaternion, frame.tangent, WORLD_UP);
+        scene.add(finish);
+
+        const checkers = 8;
+        const cellWidth = this.width / checkers;
+        for (let i = 0; i < checkers; i++) {
+          if (i % 2 !== 0) continue;
+          const cell = new THREE.Mesh(
+            new THREE.BoxGeometry(cellWidth, 0.021, 1.2),
+            new THREE.MeshLambertMaterial({ color: 0x111111 })
+          );
+          cell.position.copy(frame.point)
+            .addScaledVector(frame.right, -this.halfWidth + cellWidth * i + cellWidth * 0.5)
+            .setY(0.031);
+          setQuaternionFromForwardUp(cell.quaternion, frame.tangent, WORLD_UP);
+          scene.add(cell);
+        }
+
+        return frame;
+      }
+
+      addWallSegment(scene, frameA, frameB, side, options) {
+        const sideSign = side === 'left' ? -1 : 1;
+        const edgeA = frameA.point.clone().addScaledVector(frameA.right, sideSign * this.halfWidth);
+        const edgeB = frameB.point.clone().addScaledVector(frameB.right, sideSign * this.halfWidth);
+
+        const inward = frameA.right.clone().add(frameB.right).normalize()
+          .multiplyScalar(side === 'left' ? 1 : -1);
+
+        const centerA = edgeA.clone().addScaledVector(inward, options.thickness * 0.5);
+        const centerB = edgeB.clone().addScaledVector(inward, options.thickness * 0.5);
+        const wallForward = centerB.clone().sub(centerA).setY(0);
+        const wallLength = wallForward.length();
+        if (wallLength < 0.01) return null;
+
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(options.thickness, options.height, wallLength + 0.05),
+          new THREE.MeshLambertMaterial({ color: 0xee2222 })
+        );
+        wall.position.copy(centerA).lerp(centerB, 0.5).setY(options.height * 0.5);
+        setQuaternionFromForwardUp(wall.quaternion, wallForward.normalize(), WORLD_UP);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+
+        return {
+          a: edgeA,
+          b: edgeB,
+          normal: inward,
+          halfThickness: options.thickness * 0.5,
+        };
+      }
+
+      buildWalls(scene, options = {}) {
+        const wallOptions = {
+          thickness: options.thickness ?? 0.35,
+          height: options.height ?? 0.6,
+        };
+        const colliders = [];
+
+        const segmentCount = this.closed ? this.frames.length : this.frames.length - 1;
+        for (let i = 0; i < segmentCount; i++) {
+          const a = this.frames[i];
+          const b = this.closed ? this.frames[(i + 1) % this.frames.length] : this.frames[i + 1];
+          const tMid = this.closed ? wrap01((a.t + b.t) * 0.5) : (a.t + b.t) * 0.5;
+          const wallConfig = this.getWallConfigAt(tMid);
+
+          if (wallConfig.left) {
+            const collider = this.addWallSegment(scene, a, b, 'left', wallOptions);
+            if (collider) colliders.push(collider);
+          }
+
+          if (wallConfig.right) {
+            const collider = this.addWallSegment(scene, a, b, 'right', wallOptions);
+            if (collider) colliders.push(collider);
+          }
+        }
+
+        return colliders;
+      }
+    }
+
+    class RoadNetwork {
+      constructor(roads) {
+        this.roads = roads;
+      }
+
+      buildSurface(scene) {
+        this.roads.forEach((road) => road.buildSurface(scene));
+      }
+
+      buildWalls(scene, options = {}) {
+        return this.roads.flatMap((road) => road.buildWalls(scene, options));
+      }
+
+      containsPoint(point, margin = 0) {
+        return this.roads.some((road) => road.containsPoint(point, margin));
+      }
+
+      projectPoint(point) {
+        let best = null;
+        for (const road of this.roads) {
+          const projection = road.projectPoint(point);
+          if (!best || projection.distanceSq < best.distanceSq) {
+            best = { ...projection, road };
+          }
+        }
+        return best;
+      }
+
+      computeBounds(padding = 12) {
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minZ = Infinity;
+        let maxZ = -Infinity;
+
+        for (const road of this.roads) {
+          for (const frame of road.frames) {
+            minX = Math.min(minX, frame.point.x - road.halfWidth);
+            maxX = Math.max(maxX, frame.point.x + road.halfWidth);
+            minZ = Math.min(minZ, frame.point.z - road.halfWidth);
+            maxZ = Math.max(maxZ, frame.point.z + road.halfWidth);
+          }
+        }
+
+        return {
+          minX: minX - padding,
+          maxX: maxX + padding,
+          minZ: minZ - padding,
+          maxZ: maxZ + padding,
+        };
+      }
+    }
+
+    function makeResponseConfig(response = {}) {
+      return {
+        kind: response.kind ?? 'obstacle',
+        restitution: response.restitution ?? 0.16,
+        speedRetention: response.speedRetention ?? 0.55,
+      };
+    }
+
+    function resolveTrackAnchor(trackSystem, anchor) {
+      const road = trackSystem.roads[anchor.roadIndex ?? 0] ?? trackSystem.lapRoad;
+      const frame = road.getFrameAt(anchor.s ?? 0);
+      const position = frame.point.clone()
+        .addScaledVector(frame.right, anchor.n ?? 0)
+        .addScaledVector(WORLD_UP, anchor.y ?? 0);
+      const quaternion = new THREE.Quaternion();
+      setQuaternionFromForwardUp(quaternion, frame.tangent, WORLD_UP);
+      if (anchor.headingOffset) {
+        tempQuatA.setFromAxisAngle(WORLD_UP, anchor.headingOffset);
+        quaternion.multiply(tempQuatA).normalize();
+      }
+      return { road, frame, position, quaternion };
+    }
+
+    function createBoxDebugLines(halfExtents, color = 0xffaa40) {
+      const edges = new THREE.EdgesGeometry(
+        new THREE.BoxGeometry(halfExtents.x * 2, halfExtents.y * 2, halfExtents.z * 2)
+      );
+      return new THREE.LineSegments(
+        edges,
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 })
+      );
+    }
+
+    function createSphereDebugLines(radius, color = 0x55ccff) {
+      const geo = new THREE.WireframeGeometry(new THREE.SphereGeometry(radius, 12, 8));
+      return new THREE.LineSegments(
+        geo,
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.75 })
+      );
+    }
+
+    function createAnchorDebugLines(length = 2.8) {
+      const positions = new Float32Array([
+        0, 0.06, 0,   0, 0.06, length,
+        0, 0.06, 0,   length * 0.7, 0.06, 0,
+        0, 0.06, 0,   0, length * 0.45, 0,
+      ]);
+      const colors = new Float32Array([
+        0.9, 0.9, 1.0,  0.9, 0.9, 1.0,
+        1.0, 0.6, 0.2,  1.0, 0.6, 0.2,
+        0.4, 0.9, 0.6,  0.4, 0.9, 0.6,
+      ]);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      return new THREE.LineSegments(
+        geo,
+        new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 })
+      );
+    }
+
+    function buildNodeLocalTransform(root, node, outPosition, outQuaternion, outScale) {
+      root.updateMatrixWorld(true);
+      node.updateMatrixWorld(true);
+      tempMatrix.copy(root.matrixWorld).invert().multiply(node.matrixWorld);
+      tempMatrix.decompose(outPosition, outQuaternion, outScale);
+    }
+
+    function buildFallbackCollider(root, ownerId, response) {
+      root.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(root);
+      if (!Number.isFinite(bounds.min.x)) return null;
+      const size = bounds.getSize(tempH);
+      const centerWorld = bounds.getCenter(tempI);
+      const centerLocal = root.worldToLocal(centerWorld.clone());
+      return {
+        kind: 'box',
+        ownerId,
+        tag: 'fallback',
+        centerLocal,
+        halfExtents: size.clone().multiplyScalar(0.5),
+        rotationLocal: new THREE.Quaternion(),
+        response,
+      };
+    }
+
+    function buildBoxColliderFromNode(root, node, ownerId, defaultResponse) {
+      const geometry = node.geometry;
+      if (!geometry) return null;
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      const bounds = geometry.boundingBox;
+      if (!bounds) return null;
+
+      const size = bounds.getSize(tempH).clone();
+      const center = bounds.getCenter(tempI).clone();
+      const localPos = new THREE.Vector3();
+      const localQuat = new THREE.Quaternion();
+      const localScale = new THREE.Vector3();
+      buildNodeLocalTransform(root, node, localPos, localQuat, localScale);
+      center.multiply(localScale).applyQuaternion(localQuat).add(localPos);
+
+      return {
+        kind: 'box',
+        ownerId,
+        tag: node.userData.colliderTag ?? 'solid',
+        centerLocal: center,
+        halfExtents: size.multiply(localScale).multiplyScalar(0.5),
+        rotationLocal: localQuat.clone(),
+        response: makeResponseConfig(node.userData.response ?? defaultResponse),
+      };
+    }
+
+    function buildSphereColliderFromNode(root, node, ownerId, defaultResponse) {
+      const geometry = node.geometry;
+      if (!geometry) return null;
+      if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+      const sphere = geometry.boundingSphere;
+      if (!sphere) return null;
+
+      const localPos = new THREE.Vector3();
+      const localQuat = new THREE.Quaternion();
+      const localScale = new THREE.Vector3();
+      buildNodeLocalTransform(root, node, localPos, localQuat, localScale);
+      const centerLocal = sphere.center.clone()
+        .multiply(localScale)
+        .applyQuaternion(localQuat)
+        .add(localPos);
+
+      return {
+        kind: 'sphere',
+        ownerId,
+        tag: node.userData.colliderTag ?? 'solid',
+        centerLocal,
+        radius: sphere.radius * Math.max(localScale.x, localScale.y, localScale.z),
+        response: makeResponseConfig(node.userData.response ?? defaultResponse),
+      };
+    }
+
+    function extractAutoColliders(root, ownerId, defaultResponse = {}) {
+      const solids = [];
+      const triggers = [];
+      root.updateMatrixWorld(true);
+
+      root.traverse((node) => {
+        if (node === root) return;
+        const name = node.name ?? '';
+        let collider = null;
+
+        if (name.startsWith('col_box_') || name.startsWith('trigger_box_')) {
+          collider = buildBoxColliderFromNode(root, node, ownerId, defaultResponse);
+        } else if (name.startsWith('col_sphere_') || name.startsWith('trigger_sphere_')) {
+          collider = buildSphereColliderFromNode(root, node, ownerId, defaultResponse);
+        }
+
+        if (!collider) return;
+        if (name.startsWith('trigger_')) {
+          collider.tag = 'trigger';
+          triggers.push(collider);
+        } else {
+          solids.push(collider);
+        }
+      });
+
+      if (solids.length === 0) {
+        const fallback = buildFallbackCollider(root, ownerId, makeResponseConfig(defaultResponse));
+        if (fallback) solids.push(fallback);
+      }
+
+      return { solids, triggers };
+    }
+
+    function transformColliderToWorld(root, collider) {
+      root.updateMatrixWorld(true);
+      root.getWorldQuaternion(tempQuatA);
+      root.getWorldScale(tempScale);
+
+      const worldCenter = collider.centerLocal.clone().applyMatrix4(root.matrixWorld);
+      if (collider.kind === 'sphere') {
+        return {
+          kind: 'sphere',
+          ownerId: collider.ownerId,
+          tag: collider.tag,
+          response: collider.response,
+          center: worldCenter,
+          radius: collider.radius * Math.max(tempScale.x, tempScale.y, tempScale.z),
+          boundRadius: collider.radius * Math.max(tempScale.x, tempScale.y, tempScale.z),
+        };
+      }
+
+      tempQuatB.copy(tempQuatA).multiply(collider.rotationLocal);
+      const scaledHalfExtents = collider.halfExtents.clone().multiply(tempScale);
+      return {
+        kind: 'box',
+        ownerId: collider.ownerId,
+        tag: collider.tag,
+        response: collider.response,
+        center: worldCenter,
+        halfExtents: scaledHalfExtents,
+        rotation: tempQuatB.clone(),
+        boundRadius: Math.hypot(scaledHalfExtents.x, scaledHalfExtents.z),
+      };
+    }
+
+    class BaseObstacleInstance {
+      constructor({ id, type, root, anchor, params, tags = [], colliders = [], triggers = [], placement }) {
+        this.id = id;
+        this.type = type;
+        this.root = root;
+        this.anchor = {
+          s: anchor.s ?? 0,
+          n: anchor.n ?? 0,
+          y: anchor.y ?? 0,
+          roadIndex: anchor.roadIndex ?? 0,
+          headingOffset: anchor.headingOffset ?? 0,
+        };
+        this.params = params;
+        this.tags = tags;
+        this.colliders = colliders;
+        this.triggers = triggers;
+        this.placement = placement;
+        this.debugColliderRoot = new THREE.Group();
+        this.debugTriggerRoot = new THREE.Group();
+        this.debugAnchorRoot = createAnchorDebugLines();
+        this.debugLabelTarget = new THREE.Object3D();
+        this.debugLabelTarget.position.set(0, params.labelHeight ?? 2.4, 0);
+        this.root.add(this.debugColliderRoot);
+        this.root.add(this.debugTriggerRoot);
+        this.root.add(this.debugAnchorRoot);
+        this.root.add(this.debugLabelTarget);
+        this.debugColliderRoot.visible = false;
+        this.debugTriggerRoot.visible = false;
+        this.debugAnchorRoot.visible = false;
+        this.debugLabelEl = null;
+        this.buildDebugVisuals();
+      }
+
+      buildDebugVisuals() {
+        this.colliders.forEach((collider) => {
+          let helper = null;
+          if (collider.kind === 'box') {
+            helper = createBoxDebugLines(collider.halfExtents, 0xffaa40);
+            helper.position.copy(collider.centerLocal);
+            helper.quaternion.copy(collider.rotationLocal);
+          } else if (collider.kind === 'sphere') {
+            helper = createSphereDebugLines(collider.radius, 0x55ccff);
+            helper.position.copy(collider.centerLocal);
+          }
+          if (helper) this.debugColliderRoot.add(helper);
+        });
+
+        this.triggers.forEach((trigger) => {
+          let helper = null;
+          if (trigger.kind === 'box') {
+            helper = createBoxDebugLines(trigger.halfExtents, 0x00ffaa);
+            helper.position.copy(trigger.centerLocal);
+            helper.quaternion.copy(trigger.rotationLocal);
+          } else if (trigger.kind === 'sphere') {
+            helper = createSphereDebugLines(trigger.radius, 0x00ffaa);
+            helper.position.copy(trigger.centerLocal);
+          }
+          if (helper) this.debugTriggerRoot.add(helper);
+        });
+      }
+
+      ensureLabel(layer) {
+        if (this.debugLabelEl) return this.debugLabelEl;
+        const el = document.createElement('div');
+        el.className = 'debug-label';
+        el.textContent = `${this.id} · ${this.type}`;
+        layer.appendChild(el);
+        this.debugLabelEl = el;
+        return el;
+      }
+
+      setDebugVisibility(toggles) {
+        this.debugColliderRoot.visible = !!toggles.showColliders;
+        this.debugTriggerRoot.visible = !!toggles.showTriggers;
+        this.debugAnchorRoot.visible = !!toggles.showAnchors;
+        if (this.debugLabelEl) {
+          this.debugLabelEl.style.display = toggles.showLabels ? 'block' : 'none';
+        }
+      }
+
+      update() {}
+
+      getColliders() {
+        return this.colliders;
+      }
+
+      getTriggers() {
+        return this.triggers;
+      }
+
+      getDebugState() {
+        return {
+          id: this.id,
+          type: this.type,
+          tags: this.tags,
+          anchor: { ...this.anchor },
+          colliderCount: this.colliders.length,
+          triggerCount: this.triggers.length,
+          x: this.root.position.x,
+          y: this.root.position.y,
+          z: this.root.position.z,
+        };
+      }
+
+      dispose() {
+        if (this.debugLabelEl) this.debugLabelEl.remove();
+        if (this.root.parent) this.root.parent.remove(this.root);
+      }
+    }
+
+    class StaticObstacleInstance extends BaseObstacleInstance {}
+
+    class StaticObstacleTrackObject {
+      constructor() {
+        this.type = 'static_obstacle';
+      }
+
+      spawn(trackAnchor, params, context) {
+        const placement = resolveTrackAnchor(context.track, trackAnchor);
+        const root = new THREE.Group();
+        root.position.copy(placement.position);
+        root.quaternion.copy(placement.quaternion);
+        context.scene.add(root);
+
+        const blocks = Array.isArray(params.blocks) && params.blocks.length > 0
+          ? params.blocks
+          : [{ x: 0, z: 0, width: 3.2, depth: 2.2, height: 1.0 }];
+
+        const bodyMat = new THREE.MeshLambertMaterial({ color: params.color ?? 0xf28c28 });
+        const stripeMat = new THREE.MeshLambertMaterial({ color: params.stripeColor ?? 0x111111 });
+        const response = makeResponseConfig(params.response);
+
+        blocks.forEach((block, index) => {
+          const mount = new THREE.Group();
+          mount.position.set(block.x ?? 0, block.y ?? 0, block.z ?? 0);
+          mount.rotation.y = block.yaw ?? 0;
+          root.add(mount);
+
+          const width = block.width ?? 2.2;
+          const depth = block.depth ?? 1.8;
+          const height = block.height ?? 1.0;
+
+          const body = new THREE.Mesh(
+            new THREE.BoxGeometry(width, height, depth),
+            bodyMat
+          );
+          body.position.y = height * 0.5;
+          body.castShadow = true;
+          body.receiveShadow = true;
+          mount.add(body);
+
+          const stripe = new THREE.Mesh(
+            new THREE.BoxGeometry(width * 1.02, Math.min(0.16, height * 0.16), depth * 1.04),
+            stripeMat
+          );
+          stripe.position.set(0, height * 0.55, 0);
+          mount.add(stripe);
+
+          const colliderMarker = new THREE.Mesh(
+            new THREE.BoxGeometry(width, height, depth),
+            new THREE.MeshBasicMaterial({ visible: false })
+          );
+          colliderMarker.name = `col_box_${index}`;
+          colliderMarker.visible = false;
+          colliderMarker.position.y = height * 0.5;
+          colliderMarker.userData.response = response;
+          mount.add(colliderMarker);
+        });
+
+        const extracted = extractAutoColliders(root, params.id, response);
+        return new StaticObstacleInstance({
+          id: params.id,
+          type: this.type,
+          root,
+          anchor: trackAnchor,
+          params,
+          tags: params.tags ?? [],
+          colliders: extracted.solids,
+          triggers: extracted.triggers,
+          placement,
+        });
+      }
+    }
+
+    class ObstacleSystem {
+      constructor(scene, track) {
+        this.scene = scene;
+        this.track = track;
+        this.registry = new Map();
+        this.instances = [];
+        this.solidColliders = [];
+        this.triggerColliders = [];
+      }
+
+      register(trackObject) {
+        this.registry.set(trackObject.type, trackObject);
+      }
+
+      spawnDefinitions(definitions) {
+        definitions.forEach((definition) => {
+          const factory = this.registry.get(definition.type);
+          if (!factory) {
+            throw new Error(`Unknown obstacle type: ${definition.type}`);
+          }
+          const instance = factory.spawn(
+            definition.anchor,
+            {
+              ...definition.params,
+              id: definition.id,
+              tags: definition.tags ?? [],
+            },
+            { scene: this.scene, track: this.track }
+          );
+          this.instances.push(instance);
+        });
+        this.syncColliderCache();
+      }
+
+      update(ctx) {
+        this.instances.forEach((instance) => instance.update(ctx));
+        this.syncColliderCache();
+      }
+
+      syncColliderCache() {
+        this.solidColliders = [];
+        this.triggerColliders = [];
+        this.instances.forEach((instance) => {
+          instance.root.updateMatrixWorld(true);
+          instance.getColliders().forEach((collider) => {
+            this.solidColliders.push({
+              ...transformColliderToWorld(instance.root, collider),
+              obstacleId: instance.id,
+              obstacleType: instance.type,
+            });
+          });
+          instance.getTriggers().forEach((trigger) => {
+            this.triggerColliders.push({
+              ...transformColliderToWorld(instance.root, trigger),
+              obstacleId: instance.id,
+              obstacleType: instance.type,
+            });
+          });
+        });
+      }
+
+      setDebugVisibility(toggles) {
+        this.instances.forEach((instance) => instance.setDebugVisibility(toggles));
+      }
+
+      getDebugState() {
+        return this.instances.map((instance) => instance.getDebugState());
+      }
+    }
+
+    const staticObstacleLayouts = {
+      oval: [
+        {
+          id: 'oval_static_01',
+          type: 'static_obstacle',
+          anchor: { s: 0.11, n: 0.0 },
+          params: {
+            label: 'CENTER SPLIT',
+            blocks: [{ x: 0, z: 0, width: 3.6, depth: 2.8, height: 1.0 }],
+            response: { restitution: 0.12, speedRetention: 0.48 },
+          },
+          tags: ['small_favored'],
+        },
+        {
+          id: 'oval_static_02',
+          type: 'static_obstacle',
+          anchor: { s: 0.31, n: -2.2 },
+          params: {
+            label: 'INSIDE BUMPER',
+            blocks: [{ x: 0, z: 0, width: 2.0, depth: 2.0, height: 1.0 }],
+            response: { restitution: 0.16, speedRetention: 0.52 },
+          },
+          tags: ['punish_big'],
+        },
+        {
+          id: 'oval_static_03',
+          type: 'static_obstacle',
+          anchor: { s: 0.64, n: 2.0 },
+          params: {
+            label: 'OUTSIDE BUMPER',
+            blocks: [{ x: 0, z: 0, width: 2.2, depth: 2.2, height: 1.0 }],
+            response: { restitution: 0.16, speedRetention: 0.52 },
+          },
+          tags: ['punish_big'],
+        },
+      ],
+      grandprix: [
+        {
+          id: 'gp_static_01',
+          type: 'static_obstacle',
+          anchor: { s: 0.14, n: 0.0 },
+          params: {
+            label: 'CHICANE CORE',
+            blocks: [
+              { x: 0, z: 0, width: 3.2, depth: 2.8, height: 1.0 },
+              { x: 3.1, z: 2.4, width: 1.6, depth: 1.8, height: 0.92 },
+            ],
+            response: { restitution: 0.14, speedRetention: 0.5 },
+          },
+          tags: ['small_favored', 'size_switch_forcing'],
+        },
+        {
+          id: 'gp_static_02',
+          type: 'static_obstacle',
+          anchor: { s: 0.39, n: -2.5 },
+          params: {
+            label: 'HAIRPIN BLOCK',
+            blocks: [{ x: 0, z: 0, width: 2.4, depth: 2.2, height: 1.0 }],
+            response: { restitution: 0.18, speedRetention: 0.54 },
+          },
+          tags: ['punish_big'],
+        },
+        {
+          id: 'gp_static_03',
+          type: 'static_obstacle',
+          anchor: { s: 0.73, n: 1.8 },
+          params: {
+            label: 'EXIT PINCH',
+            blocks: [
+              { x: 0, z: 0, width: 2.3, depth: 2.0, height: 1.0 },
+              { x: -2.8, z: -1.6, width: 1.6, depth: 1.7, height: 0.86 },
+            ],
+            response: { restitution: 0.16, speedRetention: 0.5 },
+          },
+          tags: ['small_favored'],
+        },
+      ],
+    };
+
+    const DEFAULTS = {
+      sizeRate: 1.5,
+      sizeMin: 0.4,
+      sizeMax: 2.5,
+      sizeLerp: 8,
+      baseMaxSpeed: 28,
+      baseAccel: 14,
+      baseBrake: 22,
+      baseFriction: 6,
+      baseTurnRate: 1.8,
+      speedTiny: 1.5,
+      speedGiant: 0.7,
+      accelTiny: 1.5,
+      accelGiant: 0.6,
+      turnTiny: 2.5,
+      turnGiant: 0.4,
+      hpTiny: 0.3,
+      hpGiant: 3.0,
+      atkTiny: 0.2,
+      atkGiant: 3.0,
+      projSpeed: 50,
+      projRadius: 0.22,
+      projLifetime: 5.0,
+      ammoMax: 5,
+      ammoRecharge: 3.0,
+    };
+
+    const P = { ...DEFAULTS };
+    const panelEl = document.getElementById('panel');
+    const toggleEl = document.getElementById('panel-toggle');
+
+    const PANEL_SCHEMA = [
+      {
+        title: 'Size System',
+        rows: [
+          ['Size Rate', 'sizeRate', 0.2, 5.0, 0.05],
+          ['Size Min', 'sizeMin', 0.1, 1.0, 0.05],
+          ['Size Max', 'sizeMax', 1.0, 4.0, 0.1],
+          ['Visual Lerp', 'sizeLerp', 1, 20, 0.5],
+        ],
+      },
+      {
+        title: 'Driving Base',
+        rows: [
+          ['Max Speed', 'baseMaxSpeed', 5, 60, 1],
+          ['Acceleration', 'baseAccel', 2, 30, 0.5],
+          ['Braking', 'baseBrake', 5, 50, 0.5],
+          ['Friction', 'baseFriction', 1, 20, 0.5],
+          ['Turn Rate', 'baseTurnRate', 0.2, 4, 0.1],
+        ],
+      },
+      { title: 'Speed Curve', rows: [['Tiny', 'speedTiny', 0.1, 4.0, 0.05], ['Giant', 'speedGiant', 0.1, 4.0, 0.05]] },
+      { title: 'Accel Curve', rows: [['Tiny', 'accelTiny', 0.1, 4.0, 0.05], ['Giant', 'accelGiant', 0.1, 4.0, 0.05]] },
+      { title: 'Turn Curve', rows: [['Tiny', 'turnTiny', 0.1, 5.0, 0.05], ['Giant', 'turnGiant', 0.1, 5.0, 0.05]] },
+      { title: 'HP Curve', rows: [['Tiny', 'hpTiny', 0.05, 2.0, 0.05], ['Giant', 'hpGiant', 0.5, 5.0, 0.1]] },
+      { title: 'ATK Curve', rows: [['Tiny', 'atkTiny', 0.05, 2.0, 0.05], ['Giant', 'atkGiant', 0.5, 5.0, 0.1]] },
+      {
+        title: 'Cannon',
+        rows: [
+          ['Proj Speed', 'projSpeed', 10, 120, 1],
+          ['Proj Radius', 'projRadius', 0.05, 1.0, 0.01],
+          ['Proj Lifetime', 'projLifetime', 1, 12, 0.5],
+          ['Ammo Max', 'ammoMax', 1, 10, 1],
+          ['Recharge', 'ammoRecharge', 0.5, 10, 0.5],
+        ],
+      },
+    ];
+
+    function formatVal(value, step) {
+      if (step >= 1) return value.toFixed(0);
+      if (step >= 0.1) return value.toFixed(1);
+      return value.toFixed(2);
+    }
+
+    const userDefaults = { ...DEFAULTS };
+    const sliderMap = {};
+
+    PANEL_SCHEMA.forEach((section) => {
+      const sec = document.createElement('div');
+      sec.className = 'panel-section';
+      const title = document.createElement('div');
+      title.className = 'panel-section-title';
+      title.textContent = section.title;
+      sec.appendChild(title);
+
+      section.rows.forEach(([label, key, min, max, step]) => {
+        const row = document.createElement('div');
+        row.className = 'param-row';
+
+        const lbl = document.createElement('label');
+        lbl.textContent = label;
+
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = min;
+        input.max = max;
+        input.step = step;
+        input.value = P[key];
+
+        const valEl = document.createElement('span');
+        valEl.className = 'pval';
+        valEl.textContent = formatVal(P[key], step);
+
+        const diffEl = document.createElement('span');
+        diffEl.className = 'pdiff';
+
+        input.addEventListener('input', () => {
+          P[key] = Number.parseFloat(input.value);
+          valEl.textContent = formatVal(P[key], step);
+          updateDiff(key);
+        });
+
+        row.appendChild(lbl);
+        row.appendChild(input);
+        row.appendChild(valEl);
+        row.appendChild(diffEl);
+        sec.appendChild(row);
+        sliderMap[key] = { input, valEl, diffEl };
+      });
+
+      panelEl.appendChild(sec);
+    });
+
+    function updateDiff(key) {
+      const { diffEl, input } = sliderMap[key];
+      const cur = P[key];
+      const def = userDefaults[key];
+      const step = Number.parseFloat(input.step);
+      const epsilon = step * 0.5;
+      if (Math.abs(cur - def) < epsilon) {
+        diffEl.textContent = '';
+        return;
+      }
+      const up = cur > def;
+      const range = Number.parseFloat(input.max) - Number.parseFloat(input.min);
+      const label = range > 5
+        ? `${up ? '+' : '-'}${Math.abs((cur - def) / def * 100).toFixed(0)}%`
+        : `${up ? '+' : '-'}${formatVal(Math.abs(cur - def), step)}`;
+      diffEl.textContent = label;
+      diffEl.style.color = up ? '#ffaa44' : '#44ccff';
+    }
+
+    function refreshDiffMarkers() {
+      Object.keys(sliderMap).forEach((key) => updateDiff(key));
+    }
+
+    function applyParams(src) {
+      Object.keys(DEFAULTS).forEach((key) => {
+        if (src[key] === undefined) return;
+        const value = Number.parseFloat(src[key]);
+        if (Number.isNaN(value)) return;
+        P[key] = value;
+        if (!sliderMap[key]) return;
+        const step = Number.parseFloat(sliderMap[key].input.step);
+        sliderMap[key].input.value = value;
+        sliderMap[key].valEl.textContent = formatVal(value, step);
+      });
+      refreshDiffMarkers();
+    }
+
+    const footer = document.createElement('div');
+    footer.className = 'panel-footer';
+
+    const footerRow1 = document.createElement('div');
+    footerRow1.className = 'footer-btn-row';
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'panel-btn';
+    updateBtn.textContent = 'Update Default';
+    updateBtn.addEventListener('click', () => {
+      Object.assign(userDefaults, P);
+      refreshDiffMarkers();
+    });
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'panel-btn';
+    restoreBtn.textContent = 'Restore Default';
+    restoreBtn.addEventListener('click', () => applyParams(userDefaults));
+    footerRow1.appendChild(updateBtn);
+    footerRow1.appendChild(restoreBtn);
+    footer.appendChild(footerRow1);
+
+    const footerRow2 = document.createElement('div');
+    footerRow2.className = 'footer-btn-row';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'panel-btn accent';
+    copyBtn.textContent = 'Copy JSON';
+    footerRow2.appendChild(copyBtn);
+    footer.appendChild(footerRow2);
+
+    const jsonArea = document.createElement('textarea');
+    jsonArea.id = 'json-area';
+    jsonArea.placeholder = 'Paste JSON here...';
+    footer.appendChild(jsonArea);
+
+    const footerRow3 = document.createElement('div');
+    footerRow3.className = 'footer-btn-row';
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'panel-btn accent';
+    applyBtn.textContent = 'Apply JSON';
+    footerRow3.appendChild(applyBtn);
+    footer.appendChild(footerRow3);
+
+    const statusEl = document.createElement('div');
+    statusEl.id = 'json-status';
+    footer.appendChild(statusEl);
+    panelEl.appendChild(footer);
+
+    let statusTimer = null;
+    function setStatus(text, color = '#888') {
+      statusEl.textContent = text;
+      statusEl.style.color = color;
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => {
+        statusEl.textContent = '';
+      }, 3000);
+    }
+
+    copyBtn.addEventListener('click', () => {
+      const json = JSON.stringify(P, null, 2);
+      navigator.clipboard.writeText(json)
+        .then(() => setStatus('Copied!', '#66dd88'))
+        .catch(() => {
+          jsonArea.value = json;
+          setStatus('Clipboard blocked - see below', '#ffaa44');
+        });
+    });
+
+    applyBtn.addEventListener('click', () => {
+      try {
+        applyParams(JSON.parse(jsonArea.value.trim()));
+        jsonArea.value = '';
+        setStatus('Applied!', '#66dd88');
+      } catch (error) {
+        setStatus(`Parse error: ${error.message}`, '#ff5544');
+      }
+    });
+
+    let panelOpen = false;
+    function setPanel(open) {
+      panelOpen = open;
+      panelEl.classList.toggle('hidden', !open);
+      toggleEl.textContent = open ? 'Hide Params' : 'Params';
+    }
+    toggleEl.addEventListener('click', () => setPanel(!panelOpen));
+    refreshDiffMarkers();
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x5a8fd0);
+    scene.fog = new THREE.FogExp2(0x5a8fd0, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 400);
+
+    function resize() {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    scene.add(new THREE.AmbientLight(0xcce0ff, 0.5));
+
+    const sun = new THREE.DirectionalLight(0xfff5d0, 1.6);
+    sun.position.set(50, 100, 30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 300;
+    sun.shadow.camera.left = -80;
+    sun.shadow.camera.right = 80;
+    sun.shadow.camera.top = 80;
+    sun.shadow.camera.bottom = -80;
+    scene.add(sun);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshLambertMaterial({
+        color: 0x3d6b35,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
+      })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.05;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const grandstandColliders = [];
+
+    function addGrandstandAtFrame(road, t, side = 'right', options = {}) {
+      const frame = road.getFrameAt(t);
+      const sideSign = side === 'left' ? -1 : 1;
+      const length = options.length ?? 18;
+      const depth = options.depth ?? 4;
+      const height = options.height ?? 3;
+      const clearance = options.clearance ?? 5.2;
+      const center = frame.point.clone().addScaledVector(
+        frame.right,
+        sideSign * (road.halfWidth + clearance + depth * 0.5)
+      );
+
+      const root = new THREE.Group();
+      root.position.copy(center);
+      setQuaternionFromForwardUp(root.quaternion, frame.tangent, WORLD_UP);
+      scene.add(root);
+
+      const stand = new THREE.Mesh(new THREE.BoxGeometry(depth, height, length), new THREE.MeshLambertMaterial({ color: 0x607d8b }));
+      stand.position.set(0, height * 0.5, 0);
+      stand.castShadow = true;
+      stand.receiveShadow = true;
+      root.add(stand);
+
+      const seatMat = new THREE.MeshLambertMaterial({ color: 0xe53935 });
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 9; col++) {
+          const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 1.55), seatMat);
+          seat.position.set(
+            sideSign * -0.55,
+            0.75 + row * 0.75,
+            -7 + col * 1.75 + row * 0.2
+          );
+          root.add(seat);
+        }
+      }
+
+      const colliderCount = 4;
+      for (let i = 0; i < colliderCount; i++) {
+        const localZ = -length * 0.5 + length * ((i + 0.5) / colliderCount);
+        const worldCenter = new THREE.Vector3(0, 0, localZ)
+          .applyQuaternion(root.quaternion)
+          .add(root.position);
+        grandstandColliders.push({
+          center: worldCenter,
+          radius: 1.9,
+        });
+      }
+    }
+
+    function buildOvalMap() {
+      const trackHalfLen = 38;
+      const trackRadius = 22;
+      const roadWidth = 10;
+      const centerCurve = new OvalCenterlineCurve(trackRadius, trackHalfLen);
+      const straightSpan = centerCurve.straightLength / centerCurve.totalLength;
+      const arcSpan = centerCurve.arcLength / centerCurve.totalLength;
+      const mainRoad = new CurveRoad({
+        curve: centerCurve,
+        width: roadWidth,
+        sampleCount: 280,
+        closed: true,
+        wallRanges: [
+          { start: 0.0, end: straightSpan, left: true, right: true },
+          {
+            start: straightSpan + arcSpan,
+            end: straightSpan + arcSpan + straightSpan,
+            left: true,
+            right: true,
+          },
+        ],
+      });
+      const network = new RoadNetwork([mainRoad]);
+      network.buildSurface(scene);
+      const finishFrame = mainRoad.buildFinishLine(scene, 0);
+      const wallColliders = network.buildWalls(scene, { thickness: 0.35, height: 0.6 });
+      addGrandstandAtFrame(mainRoad, 0.77, 'left', { clearance: 5.8 });
+      addGrandstandAtFrame(mainRoad, 0.27, 'right', { clearance: 6.4 });
+
+      return {
+        id: 'oval',
+        label: 'OVAL CIRCUIT',
+        network,
+        lapRoad: mainRoad,
+        finishFrame,
+        wallColliders,
+        startFrame: mainRoad.getFrameAt(0.03),
+      };
+    }
+
+    function buildGrandPrixMap() {
+      const rawPoints = Array.from({ length: 24 }, (_, index) => {
+        const theta = (index / 24) * Math.PI * 2;
+        const radius =
+          66 +
+          12 * Math.sin(theta - 0.35) -
+          18 * Math.cos(theta * 2 + 0.55) +
+          6 * Math.sin(theta * 3 - 0.8);
+        return new THREE.Vector3(
+          Math.cos(theta) * radius * 1.06,
+          0,
+          Math.sin(theta) * radius * 1.22
+        );
+      });
+      const regularizedPoints = regularizeClosedPoints(rawPoints, 1, 0.08);
+      const selfIntersections = findClosedPolylineIntersections(regularizedPoints);
+      if (selfIntersections.length > 0) {
+        throw new Error(`Grand Prix centerline self-intersects at ${JSON.stringify(selfIntersections)}`);
+      }
+      const mainCurve = new THREE.CatmullRomCurve3(regularizedPoints, true, 'centripetal');
+
+      const mainRoad = new CurveRoad({
+        curve: mainCurve,
+        width: 11,
+        sampleCount: 420,
+        closed: true,
+        wallRanges: [
+          { start: 0.0, end: 0.1, left: true, right: true },
+          { start: 0.28, end: 0.42, left: true, right: false },
+          { start: 0.6, end: 0.74, left: false, right: true },
+        ],
+      });
+
+      const network = new RoadNetwork([mainRoad]);
+      network.buildSurface(scene);
+      const finishFrame = mainRoad.buildFinishLine(scene, 0);
+      const wallColliders = network.buildWalls(scene, { thickness: 0.35, height: 0.6 });
+      addGrandstandAtFrame(mainRoad, 0.18, 'right', { clearance: 4.1 });
+      addGrandstandAtFrame(mainRoad, 0.47, 'left', { clearance: 5.7 });
+      addGrandstandAtFrame(mainRoad, 0.83, 'right', { clearance: 6.2 });
+
+      return {
+        id: 'grandprix',
+        label: 'GRAND PRIX HAIRPIN',
+        network,
+        lapRoad: mainRoad,
+        validation: {
+          centerlineIntersections: selfIntersections.length,
+        },
+        finishFrame,
+        wallColliders,
+        startFrame: mainRoad.getFrameAt(0.025),
+      };
+    }
+
+    const mapFactories = {
+      oval: buildOvalMap,
+      grandprix: buildGrandPrixMap,
+    };
+    const activeMapId = requestedMapId && mapFactories[requestedMapId] ? requestedMapId : 'oval';
+    const hasSelectedMap = requestedMapId === activeMapId;
+    controlsEnabled = false;
+    const trackMap = mapFactories[activeMapId]();
+    const roadNetwork = trackMap.network;
+    const lapRoad = trackMap.lapRoad;
+    const trackSystem = {
+      network: roadNetwork,
+      lapRoad,
+      roads: roadNetwork.roads,
+    };
+    const finishFrame = trackMap.finishFrame;
+    const wallColliders = trackMap.wallColliders;
+    const trackValidation = trackMap.validation ?? { centerlineIntersections: 0 };
+    const obstacleSystem = new ObstacleSystem(scene, trackSystem);
+    obstacleSystem.register(new StaticObstacleTrackObject());
+    obstacleSystem.spawnDefinitions(staticObstacleLayouts[activeMapId] ?? []);
+    const minimapCanvas = document.getElementById('minimap');
+    const minimapCtx = minimapCanvas.getContext('2d');
+    const minimapTitleEl = document.getElementById('minimap-title');
+    minimapTitleEl.textContent = trackMap.label;
+    const mapMenuEl = document.getElementById('map-menu');
+    if (hasSelectedMap) {
+      mapMenuEl.classList.add('hidden');
+    }
+    document.querySelectorAll('.map-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        controlsEnabled = false;
+        const nextMapId = button.dataset.map;
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('map', nextMapId);
+        window.location.href = nextUrl.toString();
+      });
+    });
+    const minimapBounds = roadNetwork.computeBounds(12);
+    const debugHudEl = document.getElementById('debug-hud');
+    const debugLabelLayerEl = document.getElementById('debug-label-layer');
+    const debugObstacleCountEl = document.getElementById('debug-obstacle-count');
+    const debugLastObstacleEl = document.getElementById('debug-last-obstacle');
+    const debugPlayerObstacleStateEl = document.getElementById('debug-player-obstacle-state');
+    const obstacleDebugToggles = {
+      showColliders: false,
+      showTriggers: false,
+      showLabels: false,
+      showAnchors: false,
+    };
+
+    obstacleSystem.instances.forEach((instance) => instance.ensureLabel(debugLabelLayerEl));
+    obstacleSystem.setDebugVisibility(obstacleDebugToggles);
+
+    function worldToMinimap(x, z, out = tempG) {
+      const width = minimapCanvas.width;
+      const height = minimapCanvas.height;
+      const spanX = Math.max(1, minimapBounds.maxX - minimapBounds.minX);
+      const spanZ = Math.max(1, minimapBounds.maxZ - minimapBounds.minZ);
+      const scale = Math.min((width - 24) / spanX, (height - 24) / spanZ);
+      const drawWidth = spanX * scale;
+      const drawHeight = spanZ * scale;
+      const offsetX = (width - drawWidth) * 0.5;
+      const offsetY = (height - drawHeight) * 0.5;
+
+      out.set(
+        width - (offsetX + (x - minimapBounds.minX) * scale),
+        height - (offsetY + (z - minimapBounds.minZ) * scale)
+      );
+      return out;
+    }
+
+    function minimapPoint(x, z) {
+      return worldToMinimap(x, z, new THREE.Vector2());
+    }
+
+    function drawMinimap() {
+      const width = minimapCanvas.width;
+      const height = minimapCanvas.height;
+      minimapCtx.clearRect(0, 0, width, height);
+
+      minimapCtx.fillStyle = '#09141d';
+      minimapCtx.fillRect(0, 0, width, height);
+
+      minimapCtx.strokeStyle = 'rgba(110, 168, 112, 0.18)';
+      minimapCtx.lineWidth = 1;
+      for (let i = 22; i < width; i += 22) {
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(i, 0);
+        minimapCtx.lineTo(i, height);
+        minimapCtx.stroke();
+      }
+      for (let i = 22; i < height; i += 22) {
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(0, i);
+        minimapCtx.lineTo(width, i);
+        minimapCtx.stroke();
+      }
+
+      minimapCtx.lineCap = 'round';
+      minimapCtx.lineJoin = 'round';
+      for (const road of roadNetwork.roads) {
+        minimapCtx.strokeStyle = road.closed ? '#6f7984' : '#88d0ff';
+        minimapCtx.lineWidth = Math.max(4, road.width * 1.05);
+        minimapCtx.beginPath();
+        road.frames.forEach((frame, index) => {
+          const p = worldToMinimap(frame.point.x, frame.point.z);
+          if (index === 0) minimapCtx.moveTo(p.x, p.y);
+          else minimapCtx.lineTo(p.x, p.y);
+        });
+        if (road.closed) {
+          const first = worldToMinimap(road.frames[0].point.x, road.frames[0].point.z);
+          minimapCtx.lineTo(first.x, first.y);
+        }
+        minimapCtx.stroke();
+      }
+
+      minimapCtx.strokeStyle = '#f04e43';
+      minimapCtx.lineWidth = 2;
+      for (const wall of wallColliders) {
+        const a = minimapPoint(wall.a.x, wall.a.z);
+        const b = minimapPoint(wall.b.x, wall.b.z);
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(a.x, a.y);
+        minimapCtx.lineTo(b.x, b.y);
+        minimapCtx.stroke();
+      }
+
+      minimapCtx.fillStyle = '#ffb14d';
+      obstacleSystem.solidColliders.forEach((collider) => {
+        const center = minimapPoint(collider.center.x, collider.center.z);
+        const radius = Math.max(2.4, collider.kind === 'sphere' ? collider.radius * 0.45 : collider.boundRadius * 0.34);
+        minimapCtx.beginPath();
+        minimapCtx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+        minimapCtx.fill();
+      });
+
+      const finishA = finishFrame.point.clone().addScaledVector(finishFrame.right, -lapRoad.halfWidth);
+      const finishB = finishFrame.point.clone().addScaledVector(finishFrame.right, lapRoad.halfWidth);
+      const finishMapA = minimapPoint(finishA.x, finishA.z);
+      const finishMapB = minimapPoint(finishB.x, finishB.z);
+      minimapCtx.strokeStyle = '#f8f8f8';
+      minimapCtx.lineWidth = 3;
+      minimapCtx.beginPath();
+      minimapCtx.moveTo(finishMapA.x, finishMapA.y);
+      minimapCtx.lineTo(finishMapB.x, finishMapB.y);
+      minimapCtx.stroke();
+
+      if (typeof rivals !== 'undefined') {
+        rivals.forEach((rival) => {
+          const rivalPos = worldToMinimap(rival.group.position.x, rival.group.position.z);
+          minimapCtx.fillStyle =
+            rival.sizeScale > 1.4 ? '#ff8a65' :
+            rival.sizeScale < 0.8 ? '#66bb6a' :
+            '#ffcc66';
+          minimapCtx.beginPath();
+          minimapCtx.arc(rivalPos.x, rivalPos.y, 3.2, 0, Math.PI * 2);
+          minimapCtx.fill();
+        });
+      }
+
+      const carMapPos = worldToMinimap(carGroup.position.x, carGroup.position.z);
+      getCarForward(carForward);
+      const headingLength = 11;
+      minimapCtx.fillStyle = '#7ed4ff';
+      minimapCtx.beginPath();
+      minimapCtx.arc(carMapPos.x, carMapPos.y, 4.5, 0, Math.PI * 2);
+      minimapCtx.fill();
+
+      minimapCtx.strokeStyle = '#d9f7ff';
+      minimapCtx.lineWidth = 2;
+      minimapCtx.beginPath();
+      minimapCtx.moveTo(carMapPos.x, carMapPos.y);
+      minimapCtx.lineTo(
+        carMapPos.x - carForward.x * headingLength,
+        carMapPos.y - carForward.z * headingLength
+      );
+      minimapCtx.stroke();
+    }
+
+    function worldToScreen(point, out = tempG) {
+      tempH.copy(point).project(camera);
+      out.set(
+        (tempH.x * 0.5 + 0.5) * window.innerWidth,
+        (-tempH.y * 0.5 + 0.5) * window.innerHeight
+      );
+      return out;
+    }
+
+    function syncObstacleDebugUI() {
+      const debugActive =
+        obstacleDebugToggles.showColliders ||
+        obstacleDebugToggles.showTriggers ||
+        obstacleDebugToggles.showLabels ||
+        obstacleDebugToggles.showAnchors;
+
+      debugHudEl.classList.toggle('visible', debugActive || debugState.lastObstacleId !== 'none');
+      obstacleSystem.setDebugVisibility(obstacleDebugToggles);
+      debugObstacleCountEl.textContent = String(obstacleSystem.instances.length);
+      debugLastObstacleEl.textContent = debugState.lastObstacleId === 'none'
+        ? 'none'
+        : `${debugState.lastObstacleId} (${debugState.lastObstacleType})`;
+
+      if (debugState.lastObstacleId === 'none') {
+        debugPlayerObstacleStateEl.textContent = 'idle';
+      } else {
+        debugPlayerObstacleStateEl.textContent = `${debugState.lastCollision} @ ${Math.abs(speed * 3.6).toFixed(0)} km/h`;
+      }
+
+      obstacleSystem.instances.forEach((instance) => {
+        const el = instance.ensureLabel(debugLabelLayerEl);
+        if (!obstacleDebugToggles.showLabels) {
+          el.style.display = 'none';
+          return;
+        }
+
+        tempI.copy(instance.debugLabelTarget.getWorldPosition(tempI));
+        tempH.copy(tempI).project(camera);
+        if (tempH.z < -1 || tempH.z > 1) {
+          el.style.display = 'none';
+          return;
+        }
+
+        const screenPos = worldToScreen(tempI);
+        el.style.display = 'block';
+        el.style.left = `${screenPos.x.toFixed(1)}px`;
+        el.style.top = `${screenPos.y.toFixed(1)}px`;
+      });
+    }
+
+    function rng(seed) {
+      let s = seed;
+      return () => {
+        s = (s * 1664525 + 1013904223) & 0xffffffff;
+        return (s >>> 0) / 4294967296;
+      };
+    }
+    const rand = rng(activeMapId === 'grandprix' ? 191 : 77);
+    const treeSamplePos = new THREE.Vector3();
+    const TREE_CLEARANCE = 2.5;
+    const treeColliders = [];
+
+    function canPlaceTree(x, z, clearance = TREE_CLEARANCE) {
+      treeSamplePos.set(x, 0, z);
+      return !roadNetwork.containsPoint(treeSamplePos, clearance);
+    }
+
+    function addTree(x, z, h = 1) {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12 * h, 0.18 * h, 1.2 * h, 6),
+        new THREE.MeshLambertMaterial({ color: 0x6b3f1e })
+      );
+      trunk.position.set(x, 0.6 * h, z);
+      trunk.castShadow = true;
+      scene.add(trunk);
+
+      const foliage = new THREE.Mesh(
+        new THREE.ConeGeometry(0.9 * h, 2.2 * h, 7),
+        new THREE.MeshLambertMaterial({ color: 0x1b5e20 + Math.floor(rand() * 0x103010) })
+      );
+      foliage.position.set(x, (1.2 + 1.1) * h, z);
+      foliage.castShadow = true;
+      scene.add(foliage);
+
+      treeColliders.push({
+        center: new THREE.Vector3(x, 0, z),
+        radius: 0.24 + h * 0.32,
+      });
+    }
+
+    function scatterTrees(count, sampler, maxAttempts = count * 25) {
+      let placed = 0;
+      let attempts = 0;
+      while (placed < count && attempts < maxAttempts) {
+        attempts++;
+        const sample = sampler();
+        if (!canPlaceTree(sample.x, sample.z)) continue;
+        addTree(sample.x, sample.z, sample.h);
+        placed++;
+      }
+    }
+
+    const treeBounds = roadNetwork.computeBounds(activeMapId === 'grandprix' ? 24 : 20);
+    scatterTrees(activeMapId === 'grandprix' ? 140 : 90, () => ({
+      x: treeBounds.minX + rand() * (treeBounds.maxX - treeBounds.minX),
+      z: treeBounds.minZ + rand() * (treeBounds.maxZ - treeBounds.minZ),
+      h: 0.65 + rand() * 0.85,
+    }));
+
+    const carGroup = new THREE.Group();
+    const carVisual = new THREE.Group();
+    carGroup.add(carVisual);
+    scene.add(carGroup);
+
+    const matBody = new THREE.MeshLambertMaterial({ color: 0x1565c0 });
+    const matCabin = new THREE.MeshLambertMaterial({ color: 0x1976d2 });
+    const matWheel = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const matRim = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
+    const matGlass = new THREE.MeshLambertMaterial({ color: 0x88aaff, transparent: true, opacity: 0.6 });
+    const matLight = new THREE.MeshLambertMaterial({ color: 0xffffcc, emissive: 0xffff00 });
+
+    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 4.0), matBody);
+    bodyMesh.position.y = 0.5;
+    bodyMesh.castShadow = true;
+    carVisual.add(bodyMesh);
+
+    const spoilerBase = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 0.5), matBody);
+    spoilerBase.position.set(0, 1.05, -2.1);
+    carVisual.add(spoilerBase);
+
+    const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.35, 0.08), matBody);
+    spoilerWing.position.set(0, 1.28, -2.1);
+    spoilerWing.castShadow = true;
+    carVisual.add(spoilerWing);
+
+    [-0.75, 0.75].forEach((x) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.07), matBody);
+      post.position.set(x, 1.16, -2.1);
+      carVisual.add(post);
+    });
+
+    const cabinMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 1.9), matCabin);
+    cabinMesh.position.set(0, 0.96, -0.25);
+    cabinMesh.castShadow = true;
+    carVisual.add(cabinMesh);
+
+    [
+      { pos: [0, 0.96, 0.76], rot: [0, 0, 0], w: 1.35, h: 0.35 },
+      { pos: [0, 0.96, -1.21], rot: [0, 0, 0], w: 1.35, h: 0.32 },
+      { pos: [0.71, 0.96, -0.25], rot: [0, Math.PI / 2, 0], w: 1.7, h: 0.3 },
+      { pos: [-0.71, 0.96, -0.25], rot: [0, Math.PI / 2, 0], w: 1.7, h: 0.3 },
+    ].forEach(({ pos, rot, w, h }) => {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), matGlass);
+      mesh.position.set(...pos);
+      mesh.rotation.set(...rot);
+      carVisual.add(mesh);
+    });
+
+    [-0.55, 0.55].forEach((x) => {
+      const light = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.05), matLight);
+      light.position.set(x, 0.55, 2.03);
+      carVisual.add(light);
+    });
+
+    const matCannon = new THREE.MeshLambertMaterial({ color: 0x222233 });
+    const cannonMount = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.3), matCannon);
+    cannonMount.position.set(0, 0.72, 1.95);
+    carVisual.add(cannonMount);
+    const cannonBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.065, 0.09, 1.1, 8),
+      matCannon
+    );
+    cannonBarrel.rotation.x = Math.PI / 2;
+    cannonBarrel.position.set(0, 0.72, 2.55);
+    cannonBarrel.castShadow = true;
+    carVisual.add(cannonBarrel);
+
+    const wheels = [];
+    [[-1.0, 0.3, 1.35], [1.0, 0.3, 1.35], [-1.0, 0.3, -1.35], [1.0, 0.3, -1.35]].forEach((pos) => {
+      const wheel = new THREE.Group();
+      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.24, 18), matWheel);
+      tire.rotation.z = Math.PI / 2;
+      tire.castShadow = true;
+      wheel.add(tire);
+
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.25, 8), matRim);
+      rim.rotation.z = Math.PI / 2;
+      wheel.add(rim);
+
+      for (let i = 0; i < 5; i++) {
+        const spoke = new THREE.Mesh(
+          new THREE.BoxGeometry(0.04, 0.3, 0.04),
+          new THREE.MeshLambertMaterial({ color: 0x888888 })
+        );
+        spoke.rotation.z = (i / 5) * Math.PI * 2;
+        wheel.add(spoke);
+      }
+
+      wheel.position.set(...pos);
+      carVisual.add(wheel);
+      wheels.push(wheel);
+    });
+
+    const startFrame = trackMap.startFrame;
+    const START_POS = startFrame.point.clone();
+    const START_QUAT = new THREE.Quaternion();
+    setQuaternionFromForwardUp(START_QUAT, startFrame.tangent, WORLD_UP);
+    carGroup.position.copy(START_POS);
+    carGroup.quaternion.copy(START_QUAT);
+
+    const AI_LOOKAHEAD = 0.025;
+    const AI_TURN_RATE = 1.8;
+    const CAR_CAR_RESTITUTION = 0.35;
+
+    const aiForward = new THREE.Vector3();
+    const aiUp = new THREE.Vector3();
+    const aiTarget = new THREE.Vector3();
+    const aiSteering = new THREE.Quaternion();
+    const carCollisionForwardA = new THREE.Vector3();
+    const carCollisionForwardB = new THREE.Vector3();
+
+    function makeRivalCar(bodyColor, cabinColor, startT, rivalSizeScale, laneOffset = 0) {
+      const sizeTValue = (rivalSizeScale - P.sizeMin) / (P.sizeMax - P.sizeMin);
+      const baseTValue = baseT();
+      const maxSpeed =
+        P.baseMaxSpeed *
+        (attrLerp(P.speedTiny, P.speedGiant, sizeTValue) / attrLerp(P.speedTiny, P.speedGiant, baseTValue));
+      const accel =
+        P.baseAccel *
+        (attrLerp(P.accelTiny, P.accelGiant, sizeTValue) / attrLerp(P.accelTiny, P.accelGiant, baseTValue));
+
+      const group = new THREE.Group();
+      scene.add(group);
+
+      const bodyMaterial = new THREE.MeshLambertMaterial({ color: bodyColor });
+      const cabinMaterial = new THREE.MeshLambertMaterial({ color: cabinColor });
+      const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x111111 });
+      const rimMaterial = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 4.0), bodyMaterial);
+      body.position.y = 0.5;
+      body.castShadow = true;
+      group.add(body);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 1.9), cabinMaterial);
+      cabin.position.set(0, 0.96, -0.25);
+      cabin.castShadow = true;
+      group.add(cabin);
+
+      [[-1.0, 0.3, 1.35], [1.0, 0.3, 1.35], [-1.0, 0.3, -1.35], [1.0, 0.3, -1.35]].forEach(([px, py, pz]) => {
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.24, 12), wheelMaterial);
+        tire.rotation.z = Math.PI / 2;
+        tire.position.set(px, py, pz);
+        group.add(tire);
+
+        const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.25, 6), rimMaterial);
+        rim.rotation.z = Math.PI / 2;
+        rim.position.set(px, py, pz);
+        group.add(rim);
+      });
+
+      group.scale.setScalar(rivalSizeScale);
+
+      const frame = lapRoad.getFrameAt(startT);
+      group.position.copy(frame.point).addScaledVector(frame.right, laneOffset).setY(0);
+      setQuaternionFromForwardUp(group.quaternion, frame.tangent, WORLD_UP);
+
+      return {
+        group,
+        sizeScale: rivalSizeScale,
+        maxSpeed,
+        accel,
+        laneOffset,
+        speed: 0,
+        impactVelocity: new THREE.Vector3(),
+        radius: 1.15 * rivalSizeScale,
+        trackT: startT,
+        lapCount: 0,
+        prevFinishDot: null,
+      };
+    }
+
+    const targets = [];
+    const projectiles = [];
+    const hitEffects = [];
+    const projMat = new THREE.MeshLambertMaterial({ color: 0xffdd44, emissive: 0xaa7700 });
+    const balloonColors = [0xff3366, 0xff9900, 0x33ccff, 0xcc44ff, 0x44ff99];
+    let balloonIndex = 0;
+
+    function registerTarget(mesh, hitRadius, position) {
+      scene.add(mesh);
+      targets.push({ mesh, hitRadius, pos: position.clone() });
+    }
+
+    function makeBarrel(position) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.38, 0.44, 1.4, 10),
+        new THREE.MeshLambertMaterial({ color: 0xcc3311 })
+      );
+      body.position.y = 0.7;
+      body.castShadow = true;
+      group.add(body);
+      [0.25, 0.85, 1.25].forEach((y) => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.43, 0.05, 4, 14),
+          new THREE.MeshLambertMaterial({ color: 0x887755 })
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = y;
+        group.add(ring);
+      });
+      group.position.copy(position);
+      registerTarget(group, 0.6, position);
+    }
+
+    function makeCrate(position) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 1.2, 1.2),
+        new THREE.MeshLambertMaterial({ color: 0xa07830 })
+      );
+      body.position.y = 0.6;
+      body.castShadow = true;
+      group.add(body);
+      const plankMat = new THREE.MeshLambertMaterial({ color: 0x6b4010 });
+      [[1.22, 0.4], [0.4, 1.22]].forEach(([width, depth]) => {
+        [-0.2, 0.2].forEach((dy) => {
+          const plank = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, depth), plankMat);
+          plank.position.y = 0.6 + dy;
+          group.add(plank);
+        });
+      });
+      group.position.copy(position);
+      registerTarget(group, 0.75, position);
+    }
+
+    function makePoleTarget(position) {
+      const group = new THREE.Group();
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.09, 3.4, 7),
+        new THREE.MeshLambertMaterial({ color: 0x445566 })
+      );
+      pole.position.y = 1.7;
+      group.add(pole);
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.85, 0.85, 0.1, 18),
+        new THREE.MeshLambertMaterial({ color: 0xeeee22 })
+      );
+      disc.position.y = 3.3;
+      disc.castShadow = true;
+      group.add(disc);
+      [[0.55, 0.09], [0.28, 0.07]].forEach(([radius, tube]) => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(radius, tube, 4, 18),
+          new THREE.MeshLambertMaterial({ color: 0xdd2211 })
+        );
+        ring.position.y = 3.35;
+        ring.rotation.x = Math.PI / 2;
+        group.add(ring);
+      });
+      group.position.copy(position);
+      registerTarget(group, 0.9, position);
+    }
+
+    function makeBalloon(position) {
+      const color = balloonColors[balloonIndex++ % balloonColors.length];
+      const group = new THREE.Group();
+      const string = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 2.2, 4),
+        new THREE.MeshLambertMaterial({ color: 0xcccccc })
+      );
+      string.position.y = 1.1;
+      group.add(string);
+      const balloon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.72, 12, 9),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      balloon.position.y = 2.8;
+      balloon.castShadow = true;
+      group.add(balloon);
+      const sheen = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 6, 5),
+        new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 })
+      );
+      sheen.position.set(0.22, 3.0, 0.42);
+      group.add(sheen);
+      const knot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 5, 4),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      knot.position.y = 2.1;
+      group.add(knot);
+      group.position.copy(position);
+      registerTarget(group, 0.78, position);
+    }
+
+    function spawnHitEffect(worldPos) {
+      [
+        { radius: 0.5, tube: 0.15, color: 0xffaa22, life: 0.45 },
+        { radius: 0.3, tube: 0.1, color: 0xffffff, life: 0.3 },
+      ].forEach(({ radius, tube, color, life }) => {
+        const mesh = new THREE.Mesh(
+          new THREE.TorusGeometry(radius, tube, 4, 16),
+          new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 1 })
+        );
+        mesh.position.copy(worldPos);
+        mesh.position.y = Math.max(worldPos.y, 0.3);
+        mesh.rotation.x = Math.PI / 2;
+        scene.add(mesh);
+        hitEffects.push({ mesh, life, maxLife: life });
+      });
+    }
+
+    const targetRand = rng(activeMapId === 'grandprix' ? 413 : 211);
+    const targetSamplePos = new THREE.Vector3();
+    const targetBounds = roadNetwork.computeBounds(activeMapId === 'grandprix' ? 18 : 16);
+    const TARGET_CLEARANCE = 3.5;
+
+    function canPlaceTarget(x, z) {
+      targetSamplePos.set(x, 0, z);
+      if (roadNetwork.containsPoint(targetSamplePos, TARGET_CLEARANCE)) return false;
+      if (targetSamplePos.distanceToSquared(START_POS) < 18 * 18) return false;
+      return !grandstandColliders.some((stand) => stand.center.distanceToSquared(targetSamplePos) < 5.5 * 5.5);
+    }
+
+    function scatterTargets(totalCount, maxAttempts = totalCount * 40) {
+      const builders = [makeBarrel, makeCrate, makePoleTarget, makeBalloon];
+      let placed = 0;
+      let attempts = 0;
+      while (placed < totalCount && attempts < maxAttempts) {
+        attempts++;
+        const position = new THREE.Vector3(
+          targetBounds.minX + targetRand() * (targetBounds.maxX - targetBounds.minX),
+          0,
+          targetBounds.minZ + targetRand() * (targetBounds.maxZ - targetBounds.minZ)
+        );
+        if (!canPlaceTarget(position.x, position.z)) continue;
+        const builder = builders[placed % builders.length];
+        builder(position);
+        placed++;
+      }
+    }
+
+    scatterTargets(activeMapId === 'grandprix' ? 18 : 14);
+    document.getElementById('score-total').textContent = ` / ${targets.length}`;
+
+    let lapCount = 0;
+    let bestLap = Infinity;
+    let lapStartTime = 0;
+    let lapActive = false;
+    let previousFinishDot = null;
+
+    function fmtTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = (seconds % 60).toFixed(2).padStart(5, '0');
+      return `${minutes}:${secs}`;
+    }
+
+    const msgEl = document.getElementById('msg');
+    const countdownEl = document.getElementById('countdown');
+    let msgTimer = null;
+    function showMsg(text) {
+      msgEl.textContent = text;
+      msgEl.style.display = 'block';
+      if (msgTimer) clearTimeout(msgTimer);
+      msgTimer = setTimeout(() => { msgEl.style.display = 'none'; }, 2200);
+    }
+
+    // TODO: Restore spline-based lap validation without false negatives.
+    const COUNTDOWN_STEPS = ['3', '2', '1', 'GO!'];
+    const COUNTDOWN_STEP_DURATION = 0.82;
+    let countdownActive = hasSelectedMap;
+    let countdownElapsed = 0;
+    let countdownIndex = -1;
+
+    function syncCountdown() {
+      if (!countdownActive) {
+        countdownEl.classList.remove('visible');
+        countdownEl.textContent = '';
+        return;
+      }
+
+      const nextIndex = Math.floor(countdownElapsed / COUNTDOWN_STEP_DURATION);
+      if (nextIndex === countdownIndex) return;
+      countdownIndex = nextIndex;
+
+      if (countdownIndex >= COUNTDOWN_STEPS.length) {
+        countdownActive = false;
+        controlsEnabled = true;
+        countdownEl.classList.remove('visible');
+        countdownEl.textContent = '';
+        return;
+      }
+
+      countdownEl.textContent = COUNTDOWN_STEPS[countdownIndex];
+      countdownEl.classList.add('visible');
+    }
+
+    syncCountdown();
+
+    function updateFinishState(pos) {
+      tempA.copy(pos).sub(finishFrame.point);
+      const longitudinal = tempA.dot(finishFrame.tangent);
+      const lateral = Math.abs(tempA.dot(finishFrame.right));
+      const nearLine = lateral <= lapRoad.halfWidth + 0.5 && Math.abs(longitudinal) <= 2.5;
+
+      if (previousFinishDot !== null && previousFinishDot < 0 && longitudinal >= 0 && nearLine) {
+        const now = performance.now() / 1000;
+        if (lapActive) {
+          const lapTime = now - lapStartTime;
+          lapCount++;
+          if (lapTime < bestLap) bestLap = lapTime;
+          document.getElementById('laps').textContent = lapCount;
+          document.getElementById('best').textContent = fmtTime(bestLap);
+          showMsg(`Lap ${lapCount} - ${fmtTime(lapTime)}`);
+        }
+        lapStartTime = now;
+        lapActive = true;
+      }
+
+      previousFinishDot = longitudinal;
+    }
+
+    let sizeScale = 1.0;
+    let sizeScaleDisp = 1.0;
+    let ammo = Math.round(P.ammoMax);
+    let ammoCharge = 0;
+    let score = 0;
+
+    function sizeT() {
+      return (sizeScale - P.sizeMin) / (P.sizeMax - P.sizeMin);
+    }
+
+    function attrLerp(tiny, giant, t) {
+      return tiny + (giant - tiny) * t;
+    }
+
+    function baseT() {
+      return (1.0 - P.sizeMin) / (P.sizeMax - P.sizeMin);
+    }
+
+    function currentStats() {
+      const t = sizeT();
+      const bt = baseT();
+      return {
+        maxSpeed: P.baseMaxSpeed * (attrLerp(P.speedTiny, P.speedGiant, t) / attrLerp(P.speedTiny, P.speedGiant, bt)),
+        accel: P.baseAccel * (attrLerp(P.accelTiny, P.accelGiant, t) / attrLerp(P.accelTiny, P.accelGiant, bt)),
+        brake: P.baseBrake,
+        friction: P.baseFriction,
+        turnRate: P.baseTurnRate * (attrLerp(P.turnTiny, P.turnGiant, t) / attrLerp(P.turnTiny, P.turnGiant, bt)),
+        hp: attrLerp(P.hpTiny, P.hpGiant, t),
+        atk: attrLerp(P.atkTiny, P.atkGiant, t),
+      };
+    }
+
+    function sizeName(value) {
+      if (value < 0.55) return 'TINY';
+      if (value < 0.75) return 'SMALL';
+      if (value < 1.25) return 'NORMAL';
+      if (value < 1.75) return 'BIG';
+      if (value < 2.2) return 'HUGE';
+      return 'TITAN';
+    }
+
+    function sizeColor(t) {
+      const r = Math.round(t * 255);
+      const g = Math.round((1 - Math.abs(t - 0.5) * 2) * 200 + 55);
+      const b = Math.round((1 - t) * 255);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    const ammoBulletsEl = document.getElementById('ammo-bullets');
+    const ammoChargeFillEl = document.getElementById('ammo-charge-fill');
+    const bulletEls = [];
+    for (let i = 0; i < 10; i++) {
+      const span = document.createElement('span');
+      span.className = 'bullet empty';
+      ammoBulletsEl.appendChild(span);
+      bulletEls.push(span);
+    }
+
+    function updateAmmoHUD() {
+      const maxAmmo = Math.round(P.ammoMax);
+      bulletEls.forEach((el, index) => {
+        if (index >= maxAmmo) {
+          el.style.display = 'none';
+          return;
+        }
+        el.style.display = 'block';
+        el.className = `bullet${index < ammo ? '' : ' empty'}`;
+      });
+      ammoChargeFillEl.style.width = ammo >= maxAmmo ? '0%' : `${(ammoCharge * 100).toFixed(1)}%`;
+    }
+
+    const AC = new (window.AudioContext || window.webkitAudioContext)();
+    const masterGain = AC.createGain();
+    masterGain.gain.value = 0.7;
+    masterGain.connect(AC.destination);
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.value = -6;
+    comp.ratio.value = 4;
+    comp.connect(masterGain);
+
+    const engineGain = AC.createGain();
+    engineGain.gain.value = 0;
+    engineGain.connect(comp);
+    const engineLP = AC.createBiquadFilter();
+    engineLP.type = 'lowpass';
+    engineLP.frequency.value = 600;
+    engineLP.Q.value = 2;
+    engineLP.connect(engineGain);
+    const engineOsc1 = AC.createOscillator();
+    engineOsc1.type = 'square';
+    engineOsc1.frequency.value = 55;
+    engineOsc1.connect(engineLP);
+    engineOsc1.start();
+    const engineOsc2 = AC.createOscillator();
+    engineOsc2.type = 'square';
+    engineOsc2.frequency.value = 57;
+    engineOsc2.connect(engineLP);
+    engineOsc2.start();
+    const engineOscSub = AC.createOscillator();
+    engineOscSub.type = 'sawtooth';
+    engineOscSub.frequency.value = 27;
+    const engineSubGain = AC.createGain();
+    engineSubGain.gain.value = 0.5;
+    engineOscSub.connect(engineSubGain);
+    engineSubGain.connect(engineGain);
+    engineOscSub.start();
+
+    function updateEngine(speedValue, maxSpeedValue, sizeValue) {
+      const t = Math.max(0, Math.abs(speedValue)) / Math.max(1e-5, maxSpeedValue);
+      const sizePitch = Math.pow(1 / sizeValue, 0.75);
+      const baseFreq = (55 + t * 165) * sizePitch;
+      const lp = (400 + t * 2200) * (0.4 + 0.6 / sizeValue);
+      const sizeGain = Math.min(1.0, Math.exp(2.5 * (sizeValue - 1.2)));
+      const gain = t < 0.01 ? 0 : (0.07 + t * 0.17) * sizeGain;
+      const now = AC.currentTime;
+      engineOsc1.frequency.setTargetAtTime(baseFreq, now, 0.12);
+      engineOsc2.frequency.setTargetAtTime(baseFreq * 1.03, now, 0.12);
+      engineOscSub.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.15);
+      engineLP.frequency.setTargetAtTime(Math.min(lp, 8000), now, 0.1);
+      engineGain.gain.setTargetAtTime(gain, now, 0.08);
+    }
+
+    function playFire() {
+      const now = AC.currentTime;
+      const gain1 = AC.createGain();
+      gain1.gain.setValueAtTime(0.35, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      gain1.connect(comp);
+      const osc1 = AC.createOscillator();
+      osc1.type = 'square';
+      osc1.frequency.setValueAtTime(880, now);
+      osc1.frequency.exponentialRampToValueAtTime(220, now + 0.14);
+      osc1.connect(gain1);
+      osc1.start(now);
+      osc1.stop(now + 0.2);
+
+      const bufferSize = Math.floor(AC.sampleRate * 0.05);
+      const buffer = AC.createBuffer(1, bufferSize, AC.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const noise = AC.createBufferSource();
+      noise.buffer = buffer;
+      const noiseHP = AC.createBiquadFilter();
+      noiseHP.type = 'highpass';
+      noiseHP.frequency.value = 3000;
+      const noiseGain = AC.createGain();
+      noiseGain.gain.setValueAtTime(0.2, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      noise.connect(noiseHP);
+      noiseHP.connect(noiseGain);
+      noiseGain.connect(comp);
+      noise.start(now);
+      noise.stop(now + 0.06);
+    }
+
+    function playHit() {
+      const now = AC.currentTime;
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      gain.connect(comp);
+      const osc = AC.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+      osc.connect(gain);
+      osc.start(now);
+      osc.stop(now + 0.4);
+      const gain2 = AC.createGain();
+      gain2.gain.setValueAtTime(0.25, now);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      gain2.connect(comp);
+      const osc2 = AC.createOscillator();
+      osc2.type = 'square';
+      osc2.frequency.setValueAtTime(540, now);
+      osc2.frequency.exponentialRampToValueAtTime(120, now + 0.12);
+      osc2.connect(gain2);
+      osc2.start(now);
+      osc2.stop(now + 0.18);
+    }
+
+    const collisionNoiseBuffer = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+    {
+      const data = collisionNoiseBuffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    }
+    let collisionCooldownUntil = 0;
+
+    function playCollision(impactSpeedValue) {
+      const now = AC.currentTime;
+      if (now < collisionCooldownUntil) return;
+      const velocity = Math.min(impactSpeedValue / 20, 1.0);
+      if (velocity < 0.05) return;
+      collisionCooldownUntil = now + 0.12;
+
+      const gain1 = AC.createGain();
+      gain1.gain.setValueAtTime(0.9 * velocity, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      gain1.connect(comp);
+      const osc1 = AC.createOscillator();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(120 + velocity * 60, now);
+      osc1.frequency.exponentialRampToValueAtTime(28, now + 0.4);
+      osc1.connect(gain1);
+      osc1.start(now);
+      osc1.stop(now + 0.55);
+
+      const noise = AC.createBufferSource();
+      noise.buffer = collisionNoiseBuffer;
+      const bp = AC.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 300;
+      bp.Q.value = 0.4;
+      const gain2 = AC.createGain();
+      gain2.gain.setValueAtTime(0.7 * velocity, now);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      noise.connect(bp);
+      bp.connect(gain2);
+      gain2.connect(comp);
+      noise.start(now);
+      noise.stop(now + 0.3);
+
+      const gain3 = AC.createGain();
+      gain3.gain.setValueAtTime(0.6 * velocity, now);
+      gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      gain3.connect(comp);
+      const osc3 = AC.createOscillator();
+      osc3.type = 'sine';
+      osc3.frequency.setValueAtTime(55, now);
+      osc3.connect(gain3);
+      osc3.start(now);
+      osc3.stop(now + 0.1);
+    }
+
+    const BPM = 170;
+    const STEP_SECONDS = 60 / BPM / 4;
+    const SCHEDULE_AHEAD = 0.12;
+    const SCHEDULE_TICK_MS = 40;
+    const REST = null;
+
+    function hz(midi) {
+      return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    const BASS_SEQ = [
+      hz(36), REST, hz(36), REST, hz(36), REST, hz(43), REST, hz(36), REST, hz(36), REST, hz(43), REST, hz(36), REST,
+      hz(44), REST, hz(44), REST, hz(44), REST, hz(51), REST, hz(44), REST, hz(44), REST, hz(51), REST, hz(44), REST,
+      hz(41), REST, hz(41), REST, hz(41), REST, hz(48), REST, hz(41), REST, hz(41), REST, hz(48), REST, hz(41), REST,
+      hz(43), REST, hz(43), REST, hz(43), REST, hz(50), REST, hz(43), REST, hz(50), REST, hz(43), REST, hz(50), REST,
+    ];
+    const MELODY_SEQ = [
+      hz(72), REST, hz(70), REST, hz(67), REST, hz(63), REST, hz(65), REST, hz(63), REST, hz(60), REST, REST, REST,
+      hz(68), REST, hz(72), REST, hz(75), REST, hz(72), REST, hz(70), REST, hz(68), REST, hz(67), REST, REST, REST,
+      hz(65), REST, hz(68), REST, hz(72), REST, hz(68), REST, hz(67), REST, hz(65), REST, hz(63), REST, REST, REST,
+      hz(67), REST, hz(71), REST, hz(74), REST, hz(71), REST, hz(72), REST, hz(70), REST, hz(67), REST, REST, REST,
+    ];
+    const ARP_SEQ = [
+      hz(60), hz(63), hz(67), hz(70), hz(60), hz(63), hz(67), hz(70), hz(60), hz(63), hz(67), hz(70), hz(60), hz(63), hz(67), hz(70),
+      hz(56), hz(60), hz(63), hz(67), hz(56), hz(60), hz(63), hz(67), hz(56), hz(60), hz(63), hz(67), hz(56), hz(60), hz(63), hz(67),
+      hz(53), hz(56), hz(60), hz(63), hz(53), hz(56), hz(60), hz(63), hz(53), hz(56), hz(60), hz(63), hz(53), hz(56), hz(60), hz(63),
+      hz(55), hz(59), hz(62), hz(65), hz(55), hz(59), hz(62), hz(65), hz(55), hz(59), hz(62), hz(65), hz(55), hz(59), hz(62), hz(65),
+    ];
+    const PAD_SEQ = [
+      hz(60), REST, REST, REST, hz(63), REST, REST, REST, hz(67), REST, REST, REST, hz(63), REST, REST, REST,
+      hz(68), REST, REST, REST, hz(72), REST, REST, REST, hz(75), REST, REST, REST, hz(72), REST, REST, REST,
+      hz(65), REST, REST, REST, hz(68), REST, REST, REST, hz(72), REST, REST, REST, hz(68), REST, REST, REST,
+      hz(67), REST, REST, REST, hz(71), REST, REST, REST, hz(74), REST, REST, REST, hz(71), REST, REST, REST,
+    ];
+    const KICK_SEQ = Array.from({ length: 64 }, (_, i) => (i % 16 === 0 || i % 16 === 8 ? 1 : 0));
+    const SNARE_SEQ = Array.from({ length: 64 }, (_, i) => (i % 16 === 4 || i % 16 === 12 ? 1 : 0));
+    const HIHAT_SEQ = Array.from({ length: 64 }, (_, i) => (i % 2 === 0 ? 1 : 0));
+
+    const bgmNoiseBuffer = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+    {
+      const data = bgmNoiseBuffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    }
+
+    const bgmBass = AC.createGain();
+    const bgmMelody = AC.createGain();
+    const bgmArp = AC.createGain();
+    const bgmPad = AC.createGain();
+    const bgmKick = AC.createGain();
+    const bgmSnare = AC.createGain();
+    const bgmHihat = AC.createGain();
+    [bgmBass, bgmMelody, bgmArp, bgmPad, bgmKick, bgmSnare, bgmHihat].forEach((gainNode) => gainNode.connect(comp));
+    bgmBass.gain.value = 0.2;
+    bgmMelody.gain.value = 0.18;
+    bgmArp.gain.value = 0.05;
+    bgmPad.gain.value = 0.13;
+    bgmKick.gain.value = 0.17;
+    bgmSnare.gain.value = 0.12;
+    bgmHihat.gain.value = 0.1;
+
+    let melodyPitch = 1.0;
+    let seqStep = 0;
+    let nextBeatTime = 0;
+    let seqTimer = null;
+    let bgmStarted = false;
+
+    function noteDuration(sequence, step, maxSteps) {
+      let count = 1;
+      while (count < maxSteps && sequence[(step + count) % sequence.length] === null) count++;
+      return count * STEP_SECONDS * 0.93;
+    }
+
+    function scheduleBass(t, f, duration) {
+      const lp = AC.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 280;
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(1.0, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+      const osc = AC.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = f;
+      osc.connect(lp);
+      lp.connect(gain);
+      gain.connect(bgmBass);
+      osc.start(t);
+      osc.stop(t + duration + 0.02);
+    }
+
+    function scheduleMelody(t, f, duration) {
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(0.8, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+      const osc = AC.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = f * melodyPitch;
+      osc.connect(gain);
+      gain.connect(bgmMelody);
+      osc.start(t);
+      osc.stop(t + duration + 0.01);
+    }
+
+    function scheduleArp(t, f) {
+      const duration = STEP_SECONDS * 0.52;
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(0.7, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+      const osc = AC.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = f;
+      osc.connect(gain);
+      gain.connect(bgmArp);
+      osc.start(t);
+      osc.stop(t + duration + 0.01);
+    }
+
+    function schedulePad(t, f, duration) {
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.7, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+      const osc = AC.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = f * melodyPitch;
+      osc.connect(gain);
+      gain.connect(bgmPad);
+      osc.start(t);
+      osc.stop(t + duration + 0.01);
+    }
+
+    function scheduleKick(t) {
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(1.0, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      const osc = AC.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(160, t);
+      osc.frequency.exponentialRampToValueAtTime(35, t + 0.2);
+      osc.connect(gain);
+      gain.connect(bgmKick);
+      osc.start(t);
+      osc.stop(t + 0.28);
+    }
+
+    function scheduleSnare(t) {
+      const noise = AC.createBufferSource();
+      noise.buffer = bgmNoiseBuffer;
+      const bp = AC.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 2000;
+      bp.Q.value = 0.8;
+      const noiseGain = AC.createGain();
+      noiseGain.gain.setValueAtTime(0.9, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      noise.connect(bp);
+      bp.connect(noiseGain);
+      noiseGain.connect(bgmSnare);
+      noise.start(t);
+      noise.stop(t + 0.14);
+
+      const osc = AC.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(200, t);
+      osc.frequency.exponentialRampToValueAtTime(80, t + 0.08);
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(0.45, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      osc.connect(gain);
+      gain.connect(bgmSnare);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    }
+
+    function scheduleHihat(t) {
+      const noise = AC.createBufferSource();
+      noise.buffer = bgmNoiseBuffer;
+      const hp = AC.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 8000;
+      const gain = AC.createGain();
+      gain.gain.setValueAtTime(0.5, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+      noise.connect(hp);
+      hp.connect(gain);
+      gain.connect(bgmHihat);
+      noise.start(t);
+      noise.stop(t + 0.04);
+    }
+
+    function runSequencer() {
+      while (nextBeatTime < AC.currentTime + SCHEDULE_AHEAD) {
+        const i = seqStep % 64;
+        const t = nextBeatTime;
+        if (BASS_SEQ[i]) scheduleBass(t, BASS_SEQ[i], noteDuration(BASS_SEQ, i, 4));
+        if (MELODY_SEQ[i]) scheduleMelody(t, MELODY_SEQ[i], noteDuration(MELODY_SEQ, i, 4));
+        if (PAD_SEQ[i]) schedulePad(t, PAD_SEQ[i], noteDuration(PAD_SEQ, i, 8));
+        scheduleArp(t, ARP_SEQ[i]);
+        if (KICK_SEQ[i]) scheduleKick(t);
+        if (SNARE_SEQ[i]) scheduleSnare(t);
+        if (HIHAT_SEQ[i]) scheduleHihat(t);
+        seqStep++;
+        nextBeatTime += STEP_SECONDS;
+      }
+      seqTimer = setTimeout(runSequencer, SCHEDULE_TICK_MS);
+    }
+
+    function startBGM() {
+      if (bgmStarted) return;
+      bgmStarted = true;
+      seqStep = 0;
+      nextBeatTime = AC.currentTime + 0.05;
+      runSequencer();
+    }
+
+    function updateBGMMix(sizeValue) {
+      const t = (sizeValue - P.sizeMin) / (P.sizeMax - P.sizeMin);
+      const now = AC.currentTime;
+      const tau = 0.35;
+      melodyPitch = Math.pow(2, Math.max(-1, Math.min(1, (1.0 - sizeValue) * 0.75)));
+      bgmBass.gain.setTargetAtTime(0.01 + t * 0.38, now, tau);
+      bgmKick.gain.setTargetAtTime(0.03 + t * 0.29, now, tau);
+      bgmPad.gain.setTargetAtTime(0.08 + t * 0.10, now, tau);
+      bgmArp.gain.setTargetAtTime(0.08 - t * 0.06, now, tau);
+      bgmHihat.gain.setTargetAtTime(0.18 - t * 0.14, now, tau);
+      bgmMelody.gain.setTargetAtTime(0.25 - t * 0.10, now, tau);
+      bgmSnare.gain.setTargetAtTime(0.12, now, tau);
+    }
+
+    function fireCannon() {
+      const forward = getCarForward(new THREE.Vector3());
+      const spawnPos = carGroup.position.clone()
+        .addScaledVector(forward, sizeScaleDisp * 3.2)
+        .setY(sizeScaleDisp * 0.72);
+      const projectile = new THREE.Mesh(new THREE.SphereGeometry(P.projRadius, 8, 6), projMat);
+      projectile.position.copy(spawnPos);
+      projectile.castShadow = true;
+      scene.add(projectile);
+      projectiles.push({
+        mesh: projectile,
+        vel: forward.clone().multiplyScalar(P.projSpeed),
+        life: P.projLifetime,
+      });
+    }
+
+    const barSize = document.getElementById('bar-size');
+    const barHP = document.getElementById('bar-hp');
+    const barATK = document.getElementById('bar-atk');
+    const barTurn = document.getElementById('bar-turn');
+    const valSizeEl = document.getElementById('val-size');
+    const valHPEl = document.getElementById('val-hp');
+    const valATKEl = document.getElementById('val-atk');
+    const valTurnEl = document.getElementById('val-turn');
+    const sizeLabelEl = document.getElementById('size-label');
+    const scoreEl = document.getElementById('score');
+
+    function updateHUD() {
+      const t = sizeT();
+      const bt = baseT();
+      const stats = currentStats();
+      const hpBase = attrLerp(P.hpTiny, P.hpGiant, bt);
+      const atkBase = attrLerp(P.atkTiny, P.atkGiant, bt);
+
+      barSize.style.width = `${Math.max(2, t * 100)}%`;
+      barSize.style.background = sizeColor(t);
+      barHP.style.width = `${Math.min((stats.hp / hpBase) * 38, 100)}%`;
+      barATK.style.width = `${Math.min((stats.atk / atkBase) * 38, 100)}%`;
+      barTurn.style.width = `${Math.min((stats.turnRate / P.baseTurnRate) * 38, 100)}%`;
+      barHP.style.background = stats.hp > hpBase * 1.5 ? '#ff6644' : stats.hp < hpBase * 0.7 ? '#44ccff' : '#66dd88';
+      barATK.style.background = stats.atk > atkBase * 1.5 ? '#ff6644' : '#ff9944';
+      barTurn.style.background = stats.turnRate > P.baseTurnRate ? '#cc88ff' : '#9955ff';
+
+      valSizeEl.textContent = `${sizeScaleDisp.toFixed(2)}x`;
+      valHPEl.textContent = `${Math.round((stats.hp / hpBase) * 100)}`;
+      valATKEl.textContent = `${Math.round((stats.atk / atkBase) * 100)}`;
+      valTurnEl.textContent = `${Math.round((stats.turnRate / P.baseTurnRate) * 100)}`;
+
+      sizeLabelEl.textContent = sizeName(sizeScale);
+      sizeLabelEl.style.color = sizeColor(t);
+      sizeLabelEl.style.textShadow = `0 0 16px ${sizeColor(t)}`;
+      scoreEl.textContent = `${score}`;
+      updateAmmoHUD();
+    }
+
+    const keys = {};
+    window.addEventListener('keydown', (event) => {
+      if (event.code === 'Tab') {
+        event.preventDefault();
+        setPanel(!panelOpen);
+        return;
+      }
+      if (event.code === 'F2') {
+        event.preventDefault();
+        obstacleDebugToggles.showColliders = !obstacleDebugToggles.showColliders;
+        syncObstacleDebugUI();
+        return;
+      }
+      if (event.code === 'F3') {
+        event.preventDefault();
+        obstacleDebugToggles.showTriggers = !obstacleDebugToggles.showTriggers;
+        syncObstacleDebugUI();
+        return;
+      }
+      if (event.code === 'F4') {
+        event.preventDefault();
+        obstacleDebugToggles.showLabels = !obstacleDebugToggles.showLabels;
+        syncObstacleDebugUI();
+        return;
+      }
+      if (event.code === 'F7') {
+        event.preventDefault();
+        obstacleDebugToggles.showAnchors = !obstacleDebugToggles.showAnchors;
+        syncObstacleDebugUI();
+        return;
+      }
+      if (document.activeElement === jsonArea) return;
+      keys[event.code] = true;
+      if (event.code === 'Space' && !event.repeat && controlsEnabled && ammo > 0) {
+        ammo -= 1;
+        fireCannon();
+        playFire();
+      }
+      if (AC.state === 'suspended') AC.resume();
+      startBGM();
+      event.preventDefault();
+    });
+    window.addEventListener('keyup', (event) => {
+      keys[event.code] = false;
+    });
+
+    let speed = 0;
+    let driveTime = 0;
+    let offRoadTime = 0;
+
+    const BASE_CAR_RADIUS = 1.15;
+    const WALL_RESTITUTION = 0.28;
+    const TREE_RESTITUTION = 0.08;
+    const STAND_RESTITUTION = 0.1;
+    const WALL_SPEED_RETENTION = 0.72;
+    const TREE_SPEED_RETENTION = 0.38;
+    const STAND_SPEED_RETENTION = 0.26;
+    const IMPACT_DRAG = 3.4;
+    const MAX_IMPACT_SPEED = 18;
+    const COLLISION_PUSH_EPS = 0.03;
+    const COLLISION_SUBSTEP_DISTANCE = 0.7;
+    const COLLISION_BINARY_STEPS = 6;
+    const OFFROAD_MARGIN = 0.15;
+    const OFFROAD_RESPAWN_DELAY = 2.0;
+    const RESPAWN_LOOKBACK = 2.5;
+    const SNAPSHOT_INTERVAL = 0.12;
+    const SNAPSHOT_WINDOW = 8.0;
+    let currentCarRadius = BASE_CAR_RADIUS;
+
+    const previousCarPos = new THREE.Vector3();
+    const candidateCarPos = new THREE.Vector3();
+    const driveVelocity = new THREE.Vector3();
+    const totalVelocity = new THREE.Vector3();
+    const impactVelocity = new THREE.Vector3();
+    const collisionProbePos = new THREE.Vector3();
+    const collisionSafePos = new THREE.Vector3();
+    const collisionFallbackNormal = new THREE.Vector3();
+    const carForward = new THREE.Vector3();
+    const carUp = new THREE.Vector3();
+    const cameraOffset = new THREE.Vector3();
+    const cameraLookOffset = new THREE.Vector3();
+    const desiredCameraPos = new THREE.Vector3();
+    const smoothCameraPos = new THREE.Vector3();
+    const cameraLookAt = new THREE.Vector3();
+    const steeringQuat = new THREE.Quaternion();
+    const safeSnapshots = [];
+    const collisionState = {
+      kind: '',
+      normal: new THREE.Vector3(),
+      penetration: 0,
+      restitution: 0,
+      speedRetention: 1,
+      obstacleId: '',
+      obstacleType: '',
+    };
+    const debugState = {
+      wallHits: 0,
+      treeHits: 0,
+      standHits: 0,
+      obstacleHits: 0,
+      lastCollision: 'none',
+      lastObstacleId: 'none',
+      lastObstacleType: 'none',
+      lastRespawnAt: -Infinity,
+    };
+
+    const speedEl = document.getElementById('spd');
+    const offRoadEl = document.getElementById('offroad');
+    const rankEl = document.getElementById('rank');
+    const clock = new THREE.Clock();
+
+    const rivals = [
+      makeRivalCar(0xc0392b, 0xe74c3c, 0.055, 1.8, 2.5),
+      makeRivalCar(0x27ae60, 0x2ecc71, 0.055, 0.65, -2.5),
+      makeRivalCar(0xe67e22, 0xf39c12, 0.08, 1.1, 0.0),
+    ];
+
+    const playerCarState = {
+      group: carGroup,
+      speed: 0,
+      impactVelocity,
+      radius: BASE_CAR_RADIUS,
+      sizeScale: 1.0,
+    };
+
+    const allCars = [playerCarState, ...rivals];
+
+    function getForward(quaternion, out) {
+      return out.copy(LOCAL_FORWARD).applyQuaternion(quaternion).normalize();
+    }
+
+    function getUp(quaternion, out) {
+      return out.copy(LOCAL_UP).applyQuaternion(quaternion).normalize();
+    }
+
+    function getCarForward(out) {
+      return getForward(carGroup.quaternion, out);
+    }
+
+    function getCarUp(out) {
+      return getUp(carGroup.quaternion, out);
+    }
+
+    function snapCameraToCar() {
+      const sizeF = Math.max(0.7, sizeScaleDisp * 0.8);
+      const sizeFH = Math.max(0.7, sizeScaleDisp * 0.7);
+      cameraOffset.set(0, 4.5 * sizeFH, -11 * sizeF);
+      desiredCameraPos.copy(cameraOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      smoothCameraPos.copy(desiredCameraPos);
+      cameraLookOffset.set(0, 1.2 * sizeFH, 4);
+      cameraLookAt.copy(cameraLookOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      getCarUp(carUp);
+      camera.position.copy(smoothCameraPos);
+      camera.up.copy(carUp);
+      camera.lookAt(cameraLookAt);
+    }
+
+    function recordSafeSnapshot() {
+      const last = safeSnapshots[safeSnapshots.length - 1];
+      if (!last || driveTime - last.time >= SNAPSHOT_INTERVAL) {
+        safeSnapshots.push({
+          time: driveTime,
+          position: carGroup.position.clone(),
+          quaternion: carGroup.quaternion.clone(),
+        });
+      }
+
+      while (safeSnapshots.length > 1 && driveTime - safeSnapshots[0].time > SNAPSHOT_WINDOW) {
+        safeSnapshots.shift();
+      }
+    }
+
+    function getRespawnSnapshot() {
+      const targetTime = driveTime - RESPAWN_LOOKBACK;
+      for (let i = safeSnapshots.length - 1; i >= 0; i--) {
+        if (safeSnapshots[i].time <= targetTime) return safeSnapshots[i];
+      }
+      return safeSnapshots[0] || { position: START_POS, quaternion: START_QUAT };
+    }
+
+    function respawnCar() {
+      const snapshot = getRespawnSnapshot();
+      carGroup.position.copy(snapshot.position);
+      carGroup.quaternion.copy(snapshot.quaternion);
+      speed = 0;
+      playerCarState.speed = 0;
+      impactVelocity.set(0, 0, 0);
+      offRoadTime = 0;
+      lapActive = false;
+      previousFinishDot = null;
+      debugState.lastCollision = 'respawn';
+      debugState.lastObstacleId = 'none';
+      debugState.lastObstacleType = 'none';
+      debugState.lastRespawnAt = driveTime;
+      snapCameraToCar();
+      showMsg('Respawn');
+    }
+
+    function closestPointOnSegment(point, a, b, out) {
+      tempA.copy(b).sub(a);
+      const lenSq = tempA.lengthSq();
+      const t = lenSq === 0 ? 0 : clamp01(tempB.copy(point).sub(a).dot(tempA) / lenSq);
+      return out.copy(a).addScaledVector(tempA, t);
+    }
+
+    function findObstacleCollision(point, fallbackNormal, out, radius) {
+      let found = false;
+      let bestPenetration = 0;
+
+      for (const collider of obstacleSystem.solidColliders) {
+        tempA.copy(point).sub(collider.center).setY(0);
+        const boundRadius = radius + collider.boundRadius;
+        if (tempA.lengthSq() > boundRadius * boundRadius) continue;
+
+        let penetration = 0;
+
+        if (collider.kind === 'sphere') {
+          const distance = tempA.length();
+          penetration = radius + collider.radius - distance;
+          if (penetration <= 0) continue;
+
+          if (distance > 1e-5) {
+            tempD.copy(tempA).multiplyScalar(1 / distance);
+          } else if (fallbackNormal && fallbackNormal.lengthSq() > 1e-6) {
+            tempD.copy(fallbackNormal).normalize();
+          } else {
+            tempD.set(1, 0, 0);
+          }
+        } else if (collider.kind === 'box') {
+          tempH.set(1, 0, 0).applyQuaternion(collider.rotation).setY(0).normalize();
+          tempI.set(0, 0, 1).applyQuaternion(collider.rotation).setY(0).normalize();
+
+          const localX = tempA.dot(tempH);
+          const localZ = tempA.dot(tempI);
+          const halfX = collider.halfExtents.x;
+          const halfZ = collider.halfExtents.z;
+          const inside = Math.abs(localX) <= halfX && Math.abs(localZ) <= halfZ;
+
+          if (inside) {
+            const pushX = halfX - Math.abs(localX);
+            const pushZ = halfZ - Math.abs(localZ);
+            if (pushX < pushZ) {
+              tempD.copy(tempH).multiplyScalar(localX >= 0 ? 1 : -1);
+              penetration = radius + pushX;
+            } else {
+              tempD.copy(tempI).multiplyScalar(localZ >= 0 ? 1 : -1);
+              penetration = radius + pushZ;
+            }
+          } else {
+            const clampedX = Math.max(-halfX, Math.min(halfX, localX));
+            const clampedZ = Math.max(-halfZ, Math.min(halfZ, localZ));
+            tempJ.copy(collider.center)
+              .addScaledVector(tempH, clampedX)
+              .addScaledVector(tempI, clampedZ);
+            tempB.copy(point).sub(tempJ).setY(0);
+            const distance = tempB.length();
+            penetration = radius - distance;
+            if (penetration <= 0) continue;
+
+            if (distance > 1e-5) {
+              tempD.copy(tempB).multiplyScalar(1 / distance);
+            } else if (fallbackNormal && fallbackNormal.lengthSq() > 1e-6) {
+              tempD.copy(fallbackNormal).normalize();
+            } else {
+              tempD.copy(tempH);
+            }
+          }
+        }
+
+        if (penetration > bestPenetration) {
+          found = true;
+          bestPenetration = penetration;
+          out.kind = 'obstacle';
+          out.penetration = penetration;
+          out.restitution = collider.response.restitution;
+          out.speedRetention = collider.response.speedRetention;
+          out.normal.copy(tempD);
+          out.obstacleId = collider.obstacleId;
+          out.obstacleType = collider.obstacleType;
+        }
+      }
+
+      return found ? out : null;
+    }
+
+    function findCollision(point, fallbackNormal, out, radius) {
+      let found = false;
+      let bestPenetration = 0;
+      out.obstacleId = '';
+      out.obstacleType = '';
+
+      for (const wall of wallColliders) {
+        const closest = closestPointOnSegment(point, wall.a, wall.b, tempC);
+        const offset = tempB.copy(point).sub(closest).setY(0);
+        const distanceToSegment = offset.length();
+        const collisionRadius = radius + wall.halfThickness;
+        const penetration = collisionRadius - distanceToSegment;
+        if (penetration <= 0) continue;
+
+        if (distanceToSegment > 1e-5) {
+          tempD.copy(offset).multiplyScalar(1 / distanceToSegment);
+        } else {
+          tempD.copy(wall.normal);
+          if (fallbackNormal && fallbackNormal.lengthSq() > 1e-6 && tempD.dot(fallbackNormal) < 0) {
+            tempD.negate();
+          }
+        }
+
+        if (penetration > bestPenetration) {
+          found = true;
+          bestPenetration = penetration;
+          out.kind = 'wall';
+          out.penetration = penetration;
+          out.restitution = WALL_RESTITUTION;
+          out.speedRetention = WALL_SPEED_RETENTION;
+          out.normal.copy(tempD);
+          out.obstacleId = '';
+          out.obstacleType = '';
+        }
+      }
+
+      if (findObstacleCollision(point, fallbackNormal, out, radius)) {
+        found = true;
+        bestPenetration = out.penetration;
+      }
+
+      for (const tree of treeColliders) {
+        const offset = tempA.copy(point).sub(tree.center).setY(0);
+        const distanceToTree = offset.length();
+        const collisionRadius = radius + tree.radius;
+        const penetration = collisionRadius - distanceToTree;
+        if (penetration <= 0 || penetration <= bestPenetration) continue;
+
+        if (distanceToTree > 1e-5) {
+          tempD.copy(offset).multiplyScalar(1 / distanceToTree);
+        } else if (fallbackNormal && fallbackNormal.lengthSq() > 1e-6) {
+          tempD.copy(fallbackNormal).normalize();
+        } else {
+          tempD.set(1, 0, 0);
+        }
+
+        found = true;
+        bestPenetration = penetration;
+        out.kind = 'tree';
+        out.penetration = penetration;
+        out.restitution = TREE_RESTITUTION;
+        out.speedRetention = TREE_SPEED_RETENTION;
+        out.normal.copy(tempD);
+        out.obstacleId = '';
+        out.obstacleType = '';
+      }
+
+      for (const stand of grandstandColliders) {
+        const offset = tempA.copy(point).sub(stand.center).setY(0);
+        const distanceToStand = offset.length();
+        const collisionRadius = radius + stand.radius;
+        const penetration = collisionRadius - distanceToStand;
+        if (penetration <= 0 || penetration <= bestPenetration) continue;
+
+        if (distanceToStand > 1e-5) {
+          tempD.copy(offset).multiplyScalar(1 / distanceToStand);
+        } else if (fallbackNormal && fallbackNormal.lengthSq() > 1e-6) {
+          tempD.copy(fallbackNormal).normalize();
+        } else {
+          tempD.set(1, 0, 0);
+        }
+
+        found = true;
+        bestPenetration = penetration;
+        out.kind = 'stand';
+        out.penetration = penetration;
+        out.restitution = STAND_RESTITUTION;
+        out.speedRetention = STAND_SPEED_RETENTION;
+        out.normal.copy(tempD);
+        out.obstacleId = '';
+        out.obstacleType = '';
+      }
+
+      return found ? out : null;
+    }
+
+    function applyImpactResponse(velocity, hit, carState) {
+      const normalSpeed = velocity.dot(hit.normal);
+      if (normalSpeed >= 0) return;
+
+      if (carState === playerCarState) playCollision(-normalSpeed);
+      carState.speed *= hit.speedRetention;
+      carState.impactVelocity.addScaledVector(hit.normal, -normalSpeed * (1 + hit.restitution));
+      const impactSpeed = carState.impactVelocity.length();
+      if (impactSpeed > MAX_IMPACT_SPEED) {
+        carState.impactVelocity.multiplyScalar(MAX_IMPACT_SPEED / impactSpeed);
+      }
+    }
+
+    function advanceCarWithCollisions(dt, carState) {
+      const impactDamping = Math.max(0, 1 - IMPACT_DRAG * dt);
+      carState.impactVelocity.multiplyScalar(impactDamping);
+      if (carState.impactVelocity.lengthSq() < 1e-4) {
+        carState.impactVelocity.set(0, 0, 0);
+      }
+
+      getForward(carState.group.quaternion, carForward);
+      driveVelocity.copy(carForward).multiplyScalar(carState.speed);
+      totalVelocity.copy(driveVelocity).add(carState.impactVelocity);
+
+      const moveDistance = totalVelocity.length() * dt;
+      const stepCount = Math.max(1, Math.min(12, Math.ceil(moveDistance / COLLISION_SUBSTEP_DISTANCE)));
+      const stepDt = dt / stepCount;
+
+      for (let i = 0; i < stepCount; i++) {
+        tempF.copy(carState.group.position);
+        getForward(carState.group.quaternion, carForward);
+        driveVelocity.copy(carForward).multiplyScalar(carState.speed);
+        totalVelocity.copy(driveVelocity).add(carState.impactVelocity);
+        candidateCarPos.copy(tempF).addScaledVector(totalVelocity, stepDt);
+
+        collisionFallbackNormal.copy(totalVelocity).setY(0);
+        if (collisionFallbackNormal.lengthSq() > 1e-6) {
+          collisionFallbackNormal.normalize().negate();
+        } else {
+          collisionFallbackNormal.copy(carForward).negate();
+        }
+
+        const hit = findCollision(candidateCarPos, collisionFallbackNormal, collisionState, carState.radius);
+        if (!hit) {
+          carState.group.position.copy(candidateCarPos);
+          continue;
+        }
+
+        let low = 0;
+        let high = 1;
+
+        for (let j = 0; j < COLLISION_BINARY_STEPS; j++) {
+          const mid = (low + high) * 0.5;
+          collisionProbePos.lerpVectors(tempF, candidateCarPos, mid);
+          if (findCollision(collisionProbePos, collisionFallbackNormal, collisionState, carState.radius)) {
+            high = mid;
+          } else {
+            low = mid;
+          }
+        }
+
+        collisionSafePos.lerpVectors(tempF, candidateCarPos, low);
+        collisionProbePos.lerpVectors(tempF, candidateCarPos, high);
+        const resolvedHit = findCollision(collisionProbePos, collisionFallbackNormal, collisionState, carState.radius) || hit;
+        if (resolvedHit.kind === 'wall') debugState.wallHits += 1;
+        if (resolvedHit.kind === 'tree') debugState.treeHits += 1;
+        if (resolvedHit.kind === 'stand') debugState.standHits += 1;
+        if (resolvedHit.kind === 'obstacle') debugState.obstacleHits += 1;
+        if (carState === playerCarState) {
+          debugState.lastCollision = resolvedHit.kind;
+          if (resolvedHit.kind === 'obstacle') {
+            debugState.lastObstacleId = resolvedHit.obstacleId;
+            debugState.lastObstacleType = resolvedHit.obstacleType;
+          } else {
+            debugState.lastObstacleId = 'none';
+            debugState.lastObstacleType = 'none';
+          }
+        }
+
+        carState.group.position.copy(collisionSafePos).addScaledVector(resolvedHit.normal, COLLISION_PUSH_EPS);
+        applyImpactResponse(totalVelocity, resolvedHit, carState);
+        return;
+      }
+    }
+
+    function resolveCarCarCollision(carStateA, carStateB) {
+      const dx = carStateA.group.position.x - carStateB.group.position.x;
+      const dz = carStateA.group.position.z - carStateB.group.position.z;
+      const distanceSq = dx * dx + dz * dz;
+      const minDistance = carStateA.radius + carStateB.radius;
+      if (distanceSq >= minDistance * minDistance) return;
+
+      const distance = Math.sqrt(distanceSq);
+      const overlap = minDistance - distance;
+      const nx = distance > 1e-5 ? dx / distance : 1;
+      const nz = distance > 1e-5 ? dz / distance : 0;
+
+      const massA = carStateA.sizeScale * carStateA.sizeScale;
+      const massB = carStateB.sizeScale * carStateB.sizeScale;
+      const totalMass = massA + massB;
+
+      carStateA.group.position.x += nx * overlap * massB / totalMass;
+      carStateA.group.position.z += nz * overlap * massB / totalMass;
+      carStateB.group.position.x -= nx * overlap * massA / totalMass;
+      carStateB.group.position.z -= nz * overlap * massA / totalMass;
+
+      getForward(carStateA.group.quaternion, carCollisionForwardA);
+      getForward(carStateB.group.quaternion, carCollisionForwardB);
+      const vAx = carCollisionForwardA.x * carStateA.speed + carStateA.impactVelocity.x;
+      const vAz = carCollisionForwardA.z * carStateA.speed + carStateA.impactVelocity.z;
+      const vBx = carCollisionForwardB.x * carStateB.speed + carStateB.impactVelocity.x;
+      const vBz = carCollisionForwardB.z * carStateB.speed + carStateB.impactVelocity.z;
+      const relativeNormalVelocity = (vAx - vBx) * nx + (vAz - vBz) * nz;
+      if (relativeNormalVelocity >= 0) return;
+
+      const impulse =
+        -((1 + CAR_CAR_RESTITUTION) * relativeNormalVelocity) /
+        (1 / massA + 1 / massB);
+
+      carStateA.impactVelocity.x += (impulse / massA) * nx;
+      carStateA.impactVelocity.z += (impulse / massA) * nz;
+      carStateB.impactVelocity.x -= (impulse / massB) * nx;
+      carStateB.impactVelocity.z -= (impulse / massB) * nz;
+
+      if (carStateA === playerCarState || carStateB === playerCarState) {
+        playCollision(Math.abs(relativeNormalVelocity));
+      }
+    }
+
+    function updateRival(rival, dt) {
+      rival.speed = Math.min(rival.speed + rival.accel * dt, rival.maxSpeed);
+
+      const projection = lapRoad.projectPoint(rival.group.position);
+      rival.trackT = projection.t;
+      const lookaheadFrame = lapRoad.getFrameAt(wrap01(rival.trackT + AI_LOOKAHEAD));
+      const targetPoint = lookaheadFrame.point.clone().addScaledVector(lookaheadFrame.right, rival.laneOffset);
+
+      getForward(rival.group.quaternion, aiForward);
+      aiTarget.copy(targetPoint).sub(rival.group.position).setY(0);
+      if (aiTarget.lengthSq() > 1e-6) aiTarget.normalize();
+      getUp(rival.group.quaternion, aiUp);
+
+      const cross = aiForward.z * aiTarget.x - aiForward.x * aiTarget.z;
+      if (Math.abs(cross) > 0.001) {
+        const speedFraction = rival.speed / Math.max(1e-5, rival.maxSpeed);
+        aiSteering.setFromAxisAngle(aiUp, AI_TURN_RATE * dt * speedFraction * Math.sign(cross));
+        rival.group.quaternion.premultiply(aiSteering).normalize();
+      }
+
+      advanceCarWithCollisions(dt, rival);
+      rival.group.position.y = 0;
+
+      if (!roadNetwork.containsPoint(rival.group.position, OFFROAD_MARGIN)) {
+        const recoveryFrame = lapRoad.getFrameAt(rival.trackT);
+        rival.group.position.copy(recoveryFrame.point).addScaledVector(recoveryFrame.right, rival.laneOffset).setY(0);
+        setQuaternionFromForwardUp(rival.group.quaternion, recoveryFrame.tangent, WORLD_UP);
+        rival.impactVelocity.set(0, 0, 0);
+        rival.speed *= 0.6;
+      }
+
+      tempA.copy(rival.group.position).sub(finishFrame.point);
+      const longitudinal = tempA.dot(finishFrame.tangent);
+      const lateral = Math.abs(tempA.dot(finishFrame.right));
+      const nearLine = lateral <= lapRoad.halfWidth + 0.5 && Math.abs(longitudinal) <= 2.5;
+      if (rival.prevFinishDot !== null && rival.prevFinishDot < 0 && longitudinal >= 0 && nearLine) {
+        rival.lapCount++;
+      }
+      rival.prevFinishDot = longitudinal;
+    }
+
+    const debugApi = {
+      getState() {
+        return {
+          activeMapId,
+          countdownActive,
+          countdownText: countdownEl.textContent,
+          trackValidation,
+          wallHits: debugState.wallHits,
+          treeHits: debugState.treeHits,
+          standHits: debugState.standHits,
+          obstacleHits: debugState.obstacleHits,
+          lastCollision: debugState.lastCollision,
+          lastObstacleId: debugState.lastObstacleId,
+          lastObstacleType: debugState.lastObstacleType,
+          lastRespawnAt: debugState.lastRespawnAt,
+          speed,
+          impactSpeed: impactVelocity.length(),
+          offRoadTime,
+          sizeScale,
+          sizeScaleDisp,
+          ammo,
+          score,
+          targetsRemaining: targets.length,
+          rank: rankEl.textContent,
+          debugToggles: { ...obstacleDebugToggles },
+          obstacleCount: obstacleSystem.instances.length,
+          obstacles: obstacleSystem.getDebugState(),
+          rivals: rivals.map((rival) => ({
+            sizeScale: rival.sizeScale,
+            lapCount: rival.lapCount,
+            trackT: rival.trackT,
+            speed: rival.speed,
+            x: rival.group.position.x,
+            z: rival.group.position.z,
+          })),
+          lapValidationMode: 'simple_finish_line_todo',
+          position: {
+            x: carGroup.position.x,
+            y: carGroup.position.y,
+            z: carGroup.position.z,
+          },
+        };
+      },
+    };
+    window.__v12Debug = debugApi;
+    window.__v12Bigsmall2Debug = debugApi;
+    window.__iychoV14Debug = debugApi;
+    window.__phase3Debug = debugApi;
+    window.__iychoV15Debug = debugApi;
+
+    recordSafeSnapshot();
+    snapCameraToCar();
+    updateHUD();
+    drawMinimap();
+    syncObstacleDebugUI();
+
+    function update(dt) {
+      driveTime += dt;
+      if (countdownActive) {
+        countdownElapsed += dt;
+        syncCountdown();
+      }
+
+      if (controlsEnabled && keys['KeyX']) sizeScale = Math.min(sizeScale + P.sizeRate * dt, P.sizeMax);
+      if (controlsEnabled && keys['KeyZ']) sizeScale = Math.max(sizeScale - P.sizeRate * dt, P.sizeMin);
+      sizeScale = Math.max(P.sizeMin, Math.min(P.sizeMax, sizeScale));
+      sizeScaleDisp += (sizeScale - sizeScaleDisp) * Math.min(1, P.sizeLerp * dt);
+      carGroup.scale.setScalar(sizeScaleDisp);
+      carGroup.position.y = 0;
+      currentCarRadius = BASE_CAR_RADIUS * sizeScaleDisp;
+
+      const stats = currentStats();
+
+      const fwd = controlsEnabled && (keys['KeyW'] || keys['ArrowUp']);
+      const back = controlsEnabled && (keys['KeyS'] || keys['ArrowDown']);
+      const left = controlsEnabled && (keys['KeyA'] || keys['ArrowLeft']);
+      const right = controlsEnabled && (keys['KeyD'] || keys['ArrowRight']);
+
+      if (fwd) speed = Math.min(speed + stats.accel * dt, stats.maxSpeed);
+      else if (back) speed = Math.max(speed - stats.brake * dt, -stats.maxSpeed * 0.45);
+      else {
+        const friction = stats.friction * dt;
+        speed = Math.abs(speed) < friction ? 0 : speed - Math.sign(speed) * friction;
+      }
+
+      const speedFrac = Math.abs(speed) / Math.max(1e-5, stats.maxSpeed);
+      const steerInput = (left ? 1 : 0) + (right ? -1 : 0);
+      if (steerInput !== 0) {
+        getCarUp(carUp);
+        steeringQuat.setFromAxisAngle(carUp, stats.turnRate * dt * speedFrac * Math.sign(speed || 1) * steerInput);
+        carGroup.quaternion.premultiply(steeringQuat).normalize();
+      }
+
+      obstacleSystem.update({
+        dt,
+        time: driveTime,
+        player: playerCarState,
+        track: trackSystem,
+      });
+
+      previousCarPos.copy(carGroup.position);
+      playerCarState.speed = speed;
+      playerCarState.radius = currentCarRadius;
+      playerCarState.sizeScale = sizeScaleDisp;
+      advanceCarWithCollisions(dt, playerCarState);
+      speed = playerCarState.speed;
+
+      const travelDist = carGroup.position.distanceTo(previousCarPos) * Math.sign(speed || 1);
+      const wheelRadius = 0.3 * sizeScaleDisp;
+      wheels.forEach((wheel) => { wheel.rotation.x += travelDist / wheelRadius; });
+
+      const onRoad = roadNetwork.containsPoint(carGroup.position, OFFROAD_MARGIN);
+      if (onRoad) {
+        offRoadTime = 0;
+        recordSafeSnapshot();
+      } else {
+        offRoadTime += dt;
+        if (offRoadTime >= OFFROAD_RESPAWN_DELAY) {
+          respawnCar();
+          return;
+        }
+      }
+
+      offRoadEl.textContent = offRoadTime.toFixed(1);
+
+      const sizeF = Math.max(0.7, sizeScaleDisp * 0.8);
+      const sizeFH = Math.max(0.7, sizeScaleDisp * 0.7);
+      cameraOffset.set(0, 4.5 * sizeFH, -11 * sizeF);
+      desiredCameraPos.copy(cameraOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      smoothCameraPos.lerp(desiredCameraPos, 7 * dt);
+      camera.position.copy(smoothCameraPos);
+
+      cameraLookOffset.set(0, 1.2 * sizeFH, 4);
+      cameraLookAt.copy(cameraLookOffset).applyQuaternion(carGroup.quaternion).add(carGroup.position);
+      getCarUp(carUp);
+      camera.up.copy(carUp);
+      camera.lookAt(cameraLookAt);
+
+      sun.position.set(carGroup.position.x + 50, 100, carGroup.position.z + 30);
+      sun.target.position.copy(carGroup.position);
+      sun.target.updateMatrixWorld();
+
+      const maxAmmo = Math.round(P.ammoMax);
+      if (ammo < maxAmmo) {
+        ammoCharge += dt / P.ammoRecharge;
+        if (ammoCharge >= 1) {
+          ammo += 1;
+          ammoCharge = 0;
+        }
+      } else {
+        ammoCharge = 0;
+      }
+      ammo = Math.min(ammo, maxAmmo);
+
+      speedEl.textContent = Math.abs(speed * 3.6).toFixed(0);
+      updateFinishState(carGroup.position);
+      if (controlsEnabled) {
+        for (const rival of rivals) updateRival(rival, dt);
+        for (let i = 0; i < allCars.length; i++) {
+          for (let j = i + 1; j < allCars.length; j++) {
+            resolveCarCarCollision(allCars[i], allCars[j]);
+          }
+        }
+      }
+      const playerProgress = lapCount + lapRoad.projectPoint(carGroup.position).t;
+      const ahead = rivals.filter((rival) => rival.lapCount + rival.trackT > playerProgress).length;
+      rankEl.textContent = `${ahead + 1} / ${rivals.length + 1}`;
+      updateEngine(speed, stats.maxSpeed, sizeScaleDisp);
+      updateBGMMix(sizeScaleDisp);
+      updateHUD();
+      drawMinimap();
+      syncObstacleDebugUI();
+
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const projectile = projectiles[i];
+        projectile.life -= dt;
+        projectile.mesh.position.addScaledVector(projectile.vel, dt);
+
+        let hitTarget = false;
+        for (let j = targets.length - 1; j >= 0; j--) {
+          const target = targets[j];
+          const dx = projectile.mesh.position.x - target.pos.x;
+          const dz = projectile.mesh.position.z - target.pos.z;
+          if (Math.hypot(dx, dz) < target.hitRadius + P.projRadius) {
+            spawnHitEffect(projectile.mesh.position.clone());
+            scene.remove(target.mesh);
+            targets.splice(j, 1);
+            score += 1;
+            hitTarget = true;
+            playHit();
+            break;
+          }
+        }
+
+        if (hitTarget || projectile.life <= 0) {
+          scene.remove(projectile.mesh);
+          projectiles.splice(i, 1);
+        }
+      }
+
+      for (let i = hitEffects.length - 1; i >= 0; i--) {
+        const effect = hitEffects[i];
+        effect.life -= dt;
+        const t = 1 - effect.life / effect.maxLife;
+        effect.mesh.scale.setScalar(1 + t * 4);
+        effect.mesh.material.opacity = 1 - t;
+        if (effect.life <= 0) {
+          scene.remove(effect.mesh);
+          hitEffects.splice(i, 1);
+        }
+      }
+    }
+
+    function loop() {
+      requestAnimationFrame(loop);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      update(dt);
+      renderer.render(scene, camera);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
