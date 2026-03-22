@@ -176,9 +176,9 @@ function updateEngine(speed, maxSpeed, size) {
   // filter: big engine = muddier (lower LP), small = brighter
   const lp   = (400 + t * 2200) * (0.4 + 0.6 / size);
   // small size → higher freq sounds perceptually louder, compensate slightly
-  // true exponential decay: size=1.0→1.0, size=0.5→0.22, size=0.3→0.05
-  const sizeGain = Math.min(1.0, Math.exp(5 * (size - 1)));
-  const gain = t < 0.01 ? 0 : (0.12 + t * 0.28) * sizeGain;
+  // starts fading at size≈1.2, gentle slope: size=1.0→0.61, size=0.7→0.29, size=0.3→0.11
+  const sizeGain = Math.min(1.0, Math.exp(2.5 * (size - 1.2)));
+  const gain = t < 0.01 ? 0 : (0.07 + t * 0.17) * sizeGain;
 
   const now = AC.currentTime;
   osc1.frequency.setTargetAtTime(baseFreq,        now, 0.12);
@@ -323,12 +323,12 @@ const bgmKick   = AC.createGain(); bgmKick.connect(comp);
 const bgmSnare  = AC.createGain(); bgmSnare.connect(comp);
 const bgmHihat  = AC.createGain(); bgmHihat.connect(comp);
 
-bgmBass.gain.value   = 0.31;  // size=1.0 기준 초기값
-bgmMelody.gain.value = 0.30;
-bgmArp.gain.value    = 0.07;
-bgmKick.gain.value   = 0.27;
-bgmSnare.gain.value  = 0.18;
-bgmHihat.gain.value  = 0.16;
+bgmBass.gain.value   = 0.20;
+bgmMelody.gain.value = 0.18;
+bgmArp.gain.value    = 0.05;
+bgmKick.gain.value   = 0.17;
+bgmSnare.gain.value  = 0.12;
+bgmHihat.gain.value  = 0.10;
 
 // Duration of a note: sustain until next non-null (capped at maxSteps)
 function noteDur(seq, step, maxSteps) {
@@ -437,12 +437,12 @@ function updateBGMMix(size) {
   // Melody octave: size=0.3 → ×2.0(+1oct), size=1.0 → ×1.0, size=3.0 → ×0.5(−1oct)
   _melodyPitch = Math.pow(2, Math.max(-1, Math.min(1, (1.0 - size) * 0.75)));
 
-  bgmBass.gain.setTargetAtTime(  0.02 + t * 0.60, now, tau);  // 0.02 → 0.62
-  bgmKick.gain.setTargetAtTime(  0.05 + t * 0.45, now, tau);  // 0.05 → 0.50
-  bgmArp.gain.setTargetAtTime(   0.12 - t * 0.10, now, tau);  // 0.12 → 0.02
-  bgmHihat.gain.setTargetAtTime( 0.28 - t * 0.23, now, tau);  // 0.28 → 0.05
-  bgmMelody.gain.setTargetAtTime(0.38 - t * 0.16, now, tau);  // 0.38(small) → 0.22(large)
-  bgmSnare.gain.setTargetAtTime( 0.18,             now, tau);
+  bgmBass.gain.setTargetAtTime(  0.01 + t * 0.38, now, tau);
+  bgmKick.gain.setTargetAtTime(  0.03 + t * 0.29, now, tau);
+  bgmArp.gain.setTargetAtTime(   0.08 - t * 0.06, now, tau);
+  bgmHihat.gain.setTargetAtTime( 0.18 - t * 0.14, now, tau);
+  bgmMelody.gain.setTargetAtTime(0.25 - t * 0.10, now, tau);
+  bgmSnare.gain.setTargetAtTime( 0.12,             now, tau);
 }
 
 // ─────────────────────────────────────────────
