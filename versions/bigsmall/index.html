@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>bigsmall — Size Gimmick POC</title>
+  <title>morph — Size Gimmick POC</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; overflow: hidden; }
@@ -188,29 +188,29 @@
     <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
     <div class="bar-row">
       <span class="label" style="width:42px">SIZE</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-size" style="width: 2%; background: rgb(0, 55, 255);"></div></div>
-      <span class="val" id="val-size">0.40×</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-size" style="width:38%;background:#aad4ff"></div></div>
+      <span class="val" id="val-size">1.00×</span>
     </div>
     <div class="bar-row">
       <span class="label" style="width:42px">HP</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width: 10.64%; background: rgb(68, 204, 255);"></div></div>
-      <span class="val" id="val-hp">28</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width:38%;background:#66dd88"></div></div>
+      <span class="val" id="val-hp">100</span>
     </div>
     <div class="bar-row">
       <span class="label" style="width:42px">ATK</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-atk" style="width: 7.6%; background: rgb(255, 153, 68);"></div></div>
-      <span class="val" id="val-atk">20</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-atk" style="width:38%;background:#ff9944"></div></div>
+      <span class="val" id="val-atk">100</span>
     </div>
     <div class="bar-row">
       <span class="label" style="width:42px">TURN</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-turn" style="width: 50%; background: rgb(204, 136, 255);"></div></div>
-      <span class="val" id="val-turn">132</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-turn" style="width:38%;background:#cc88ff"></div></div>
+      <span class="val" id="val-turn">100</span>
     </div>
-    <div><span class="label">SCORE  </span><span class="val" id="score">0</span><span class="label" id="score-total"> / 19</span></div>
+    <div><span class="label">SCORE  </span><span class="val" id="score">0</span><span class="label" id="score-total"></span></div>
     <div id="ammo-row">
       <span class="label" style="width:42px;flex-shrink:0">AMMO</span>
-      <div id="ammo-bullets"><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span></div>
-      <div id="ammo-charge-bg"><div id="ammo-charge-fill" style="width: 0%;"></div></div>
+      <div id="ammo-bullets"></div>
+      <div id="ammo-charge-bg"><div id="ammo-charge-fill"></div></div>
     </div>
     <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
     <div><span class="label">X/Z   </span>grow / shrink</div>
@@ -220,7 +220,7 @@
   </div>
 
   <div id="size-indicator">
-    <span class="size-val" id="size-label" style="color: rgb(0, 55, 255); text-shadow: rgb(0, 55, 255) 0px 0px 16px;">TINY</span>
+    <span class="size-val" id="size-label">NORMAL</span>
   </div>
 
   <div id="msg"></div>
@@ -231,9 +231,6 @@
   <!-- Control panel (built by JS) -->
   <div id="panel" class="hidden"></div>
 
-  <!-- params.js sets window.MORPH_PARAMS — works with file:// and http:// -->
-  <script src="params.js"></script>
-
   <script type="importmap">
   { "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js" } }
   </script>
@@ -243,39 +240,36 @@
 
     // ── Tunable parameters ────────────────────────────────────
     const DEFAULTS = {
-      sizeRate      : 1.50,
-      sizeMin       : 0.40,
-      sizeMax       : 2.5,
-      sizeLerp      : 8.0,
-      baseMaxSpeed  : 28,
-      baseAccel     : 14.0,
-      baseBrake     : 22.0,
-      baseFriction  : 6.0,
-      baseTurnRate  : 1.8,
-      speedTiny     : 1.50,
-      speedGiant    : 0.70,
-      accelTiny     : 1.50,
-      accelGiant    : 0.60,
-      turnTiny      : 2.50,
-      turnGiant     : 0.40,
-      hpTiny        : 0.30,
-      hpGiant       : 3.0,
-      atkTiny       : 0.20,
-      atkGiant      : 3.0,
-      projSpeed     : 50,
-      projRadius    : 0.22,
-      projLifetime  : 5.0,
-      ammoMax       : 5,
-      ammoRecharge  : 1.0,
+      // Size system
+      sizeRate  : 1.5,   // units/sec while key held
+      sizeMin   : 0.4,
+      sizeMax   : 2.5,
+      sizeLerp  : 8,     // visual lerp speed (higher = snappier)
+
+      // Driving base (at size 1.0×)
+      baseMaxSpeed : 28,
+      baseAccel    : 14,
+      baseBrake    : 22,
+      baseFriction : 6,
+      baseTurnRate : 1.8,
+
+      // Attribute curves — value at tiny (sizeMin) and at giant (sizeMax)
+      speedTiny : 1.5,  speedGiant : 0.7,
+      accelTiny : 1.5,  accelGiant : 0.6,
+      turnTiny  : 2.5,  turnGiant  : 0.4,
+      hpTiny    : 0.3,  hpGiant    : 3.0,
+      atkTiny   : 0.2,  atkGiant   : 3.0,
+
+      // Cannon
+      projSpeed    : 50,
+      projRadius   : 0.22,
+      projLifetime : 5.0,
+      ammoMax      : 5,
+      ammoRecharge : 3.0,   // seconds per bullet
     };
 
-    // Live params object — starts from DEFAULTS, overwritten by params.js if loaded
+    // Live params object — modified by control panel sliders
     const P = { ...DEFAULTS };
-    if (window.MORPH_PARAMS) {
-      Object.keys(DEFAULTS).forEach(k => {
-        if (window.MORPH_PARAMS[k] !== undefined) P[k] = parseFloat(window.MORPH_PARAMS[k]);
-      });
-    }
 
     // ── Control panel builder ─────────────────────────────────
     const panelEl  = document.getElementById('panel');
@@ -355,9 +349,8 @@
       return v.toFixed(2);
     }
 
-    // userDefaults: mirrors whatever was in params.json at load time
-    // Used by "Restore Default" and diff markers as the baseline
-    const userDefaults = { ...P };
+    // userDefaults: starts as DEFAULTS, updated by "Update Default"
+    const userDefaults = { ...DEFAULTS };
 
     // Build sliders
     const sliderMap = {};  // key → { input, valEl, diffEl }
@@ -451,9 +444,17 @@
       refreshDiffMarkers();
     }
 
-    // ── Footer ────────────────────────────────────────────────
+    // ── Footer: Update Default / Restore Default ─────────────
     const footer = document.createElement('div');
     footer.className = 'panel-footer';
+
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'panel-btn accent';
+    updateBtn.textContent = 'Update Default';
+    updateBtn.addEventListener('click', () => {
+      Object.assign(userDefaults, P);
+      refreshDiffMarkers();
+    });
 
     const restoreBtn = document.createElement('button');
     restoreBtn.className = 'panel-btn';
@@ -462,25 +463,8 @@
       applyParams(userDefaults);
     });
 
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'panel-btn accent';
-    saveBtn.textContent = 'Save params.js';
-    saveBtn.addEventListener('click', () => {
-      const content = 'window.MORPH_PARAMS = ' + JSON.stringify(P, null, 2) + ';\n';
-      const blob = new Blob([content], { type: 'text/javascript' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'params.js';
-      a.click();
-      URL.revokeObjectURL(a.href);
-
-      // Reset diff markers — saved state is now the new baseline
-      Object.assign(userDefaults, P);
-      refreshDiffMarkers();
-    });
-
+    footer.appendChild(updateBtn);
     footer.appendChild(restoreBtn);
-    footer.appendChild(saveBtn);
     panelEl.appendChild(footer);
 
     // Toggle
@@ -1169,6 +1153,5 @@
     }
     loop();
   </script>
-
-
-<canvas data-engine="three.js r163" width="2496" height="1402" style="display: block; width: 1248px; height: 701px;"></canvas></body></html>
+</body>
+</html>
