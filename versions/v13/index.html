@@ -1018,6 +1018,7 @@
         hpBar: makeHPBar(),
         startT, laneOffset,
         startQuat: group.quaternion.clone(),
+        shotCooldown: 1.0 + Math.random() * 3.0,
       };
     }
 
@@ -1080,6 +1081,22 @@
       csB.impactVelocity.z -= (j / massB) * nz;
     }
 
+    function fireRivalCannon(rival) {
+      const fwd = new THREE.Vector3();
+      getForward(rival.group.quaternion, fwd);
+      const toPlayer = carGroup.position.clone().sub(rival.group.position).setY(0);
+      const aimDir = toPlayer.lengthSq() > 0.01 ? toPlayer.normalize() : fwd;
+      const spawnPos = rival.group.position.clone()
+        .addScaledVector(fwd, rival.sizeScale * 3.2)
+        .setY(rival.sizeScale * 0.72);
+      const proj = new THREE.Mesh(new THREE.SphereGeometry(P.projRadius, 8, 6), rivalProjMat);
+      proj.position.copy(spawnPos);
+      proj.castShadow = true;
+      scene.add(proj);
+      rivalProjectiles.push({ mesh: proj, vel: aimDir.clone().multiplyScalar(P.projSpeed), life: P.projLifetime, dmg: rival.sizeScale * 15 });
+      playFire();
+    }
+
     function respawnRival(rival) {
       const frame = road.getFrameAt(rival.startT);
       rival.group.position.copy(frame.point).addScaledVector(frame.right, rival.laneOffset).setY(0);
@@ -1124,6 +1141,24 @@
         rival.lapCount++;
       }
       rival.prevFinishDot = longitudinal;
+
+      // ── AI shooting ───────────────────────────────────────
+      rival.shotCooldown -= dt;
+      if (rival.shotCooldown <= 0) {
+        const playerProg = lapCount + road.projectPoint(carGroup.position).t;
+        const rivalProg  = rival.lapCount + rival.trackT;
+        const playerAhead = playerProg > rivalProg;
+        const dx = carGroup.position.x - rival.group.position.x;
+        const dz = carGroup.position.z - rival.group.position.z;
+        const distToPlayer = Math.sqrt(dx * dx + dz * dz);
+        if (distToPlayer < 55) {
+          fireRivalCannon(rival);
+          // Fire faster when player is ahead (more threatening target)
+          rival.shotCooldown = playerAhead ? (1.5 + Math.random() * 1.5) : (3.0 + Math.random() * 2.0);
+        } else {
+          rival.shotCooldown = 0.8;
+        }
+      }
     }
 
     // ── Targets ───────────────────────────────────────────────
@@ -1232,8 +1267,10 @@
 
     // ── Projectile system ─────────────────────────────────────
     const projectiles = [];
+    const rivalProjectiles = [];
     const hitEffects  = [];
-    const projMat = new THREE.MeshLambertMaterial({ color: 0xffdd44, emissive: 0xaa7700 });
+    const projMat      = new THREE.MeshLambertMaterial({ color: 0xffdd44, emissive: 0xaa7700 });
+    const rivalProjMat = new THREE.MeshLambertMaterial({ color: 0xff4444, emissive: 0xaa1100 });
 
     // ── Ammo state ────────────────────────────────────────────
     let ammo       = 5;
@@ -2051,6 +2088,33 @@
         if (hitTarget || p.life <= 0) {
           scene.remove(p.mesh);
           projectiles.splice(i, 1);
+        }
+      }
+
+      // ── Rival projectiles ─────────────────────────────────
+      for (let i = rivalProjectiles.length - 1; i >= 0; i--) {
+        const p = rivalProjectiles[i];
+        p.life -= dt;
+        p.mesh.position.addScaledVector(p.vel, dt);
+
+        const pdx = p.mesh.position.x - carGroup.position.x;
+        const pdz = p.mesh.position.z - carGroup.position.z;
+        const hitPlayer = Math.sqrt(pdx * pdx + pdz * pdz) < currentCarRadius + P.projRadius;
+
+        if (hitPlayer) {
+          playerHP = Math.max(0, playerHP - p.dmg);
+          speed *= 0.2;
+          spawnHitEffect(p.mesh.position.clone());
+          playHit();
+          if (playerHP <= 0) {
+            respawnCar();
+            playerHP = playerMaxHP;
+          }
+        }
+
+        if (hitPlayer || p.life <= 0) {
+          scene.remove(p.mesh);
+          rivalProjectiles.splice(i, 1);
         }
       }
 
