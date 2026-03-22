@@ -277,39 +277,58 @@ const TICK  = 40;              // scheduler poll interval (ms)
 function hz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
 const R = null;
 
-// ── Sequences: 32 steps = 2 bars of 4/4, C minor ──
+// ── Sequences: 64 steps = 4 bars of 4/4, C minor ──
+// Chord progression: Cm → Abmaj → Fm → G
+
 const BASS_SEQ = [
-  // bar 1: Cm → Abmaj
-  hz(36),R,  hz(48),R,  hz(43),R,  hz(43),R,
-  hz(44),R,  hz(44),R,  hz(51),R,  hz(43),R,
-  // bar 2: Fm → G
-  hz(41),R,  hz(41),R,  hz(48),R,  hz(48),R,
-  hz(43),R,  hz(43),R,  hz(43),R,  hz(43),R,
+  // bar 1: Cm  (root + 5th jumps)
+  hz(36),R, hz(36),R,  hz(36),R, hz(43),R,  hz(36),R, hz(36),R,  hz(43),R, hz(36),R,
+  // bar 2: Abmaj
+  hz(44),R, hz(44),R,  hz(44),R, hz(51),R,  hz(44),R, hz(44),R,  hz(51),R, hz(44),R,
+  // bar 3: Fm
+  hz(41),R, hz(41),R,  hz(41),R, hz(48),R,  hz(41),R, hz(41),R,  hz(48),R, hz(41),R,
+  // bar 4: G  (busier, tension before loop)
+  hz(43),R, hz(43),R,  hz(43),R, hz(50),R,  hz(43),R, hz(50),R,  hz(43),R, hz(50),R,
 ];
 
 const MELODY_SEQ = [
-  // bar 1: descending run
-  hz(72),R,  hz(70),R,  hz(67),R,  hz(63),R,
-  hz(70),R,  hz(67),R,  hz(63),R,  hz(60),R,
-  // bar 2: ascending resolve
-  hz(67),R,  hz(68),R,  hz(70),R,  hz(72),R,
-  hz(70),R,  hz(67),R,  hz(65),R,  hz(63),R,
+  // bar 1: Cm — descending line
+  hz(72),R, hz(70),R,  hz(67),R, hz(63),R,  hz(65),R, hz(63),R,  hz(60),R, R,R,
+  // bar 2: Abmaj — lyrical rise
+  hz(68),R, hz(72),R,  hz(75),R, hz(72),R,  hz(70),R, hz(68),R,  hz(67),R, R,R,
+  // bar 3: Fm — syncopated
+  hz(65),R, hz(68),R,  hz(72),R, hz(68),R,  hz(67),R, hz(65),R,  hz(63),R, R,R,
+  // bar 4: G — driving up, resolves back to top
+  hz(67),R, hz(71),R,  hz(74),R, hz(71),R,  hz(72),R, hz(70),R,  hz(67),R, R,R,
 ];
 
 const ARP_SEQ = [
-  // bar 1 first half: Cm arpeggio (upper register)
-  hz(72), hz(75), hz(79), hz(75),  hz(72), hz(75), hz(79), hz(75),
-  // bar 1 second half: Ab
-  hz(68), hz(72), hz(75), hz(72),  hz(68), hz(72), hz(75), hz(72),
-  // bar 2 first half: Fm
-  hz(65), hz(68), hz(72), hz(68),  hz(65), hz(68), hz(72), hz(68),
-  // bar 2 second half: Gm
-  hz(67), hz(70), hz(74), hz(70),  hz(67), hz(70), hz(74), hz(70),
+  // bar 1: Cm7  (C4,Eb4,G4,Bb4)
+  hz(60),hz(63),hz(67),hz(70),  hz(60),hz(63),hz(67),hz(70),
+  hz(60),hz(63),hz(67),hz(70),  hz(60),hz(63),hz(67),hz(70),
+  // bar 2: Abmaj7  (Ab3,C4,Eb4,G4)
+  hz(56),hz(60),hz(63),hz(67),  hz(56),hz(60),hz(63),hz(67),
+  hz(56),hz(60),hz(63),hz(67),  hz(56),hz(60),hz(63),hz(67),
+  // bar 3: Fm7  (F3,Ab3,C4,Eb4)
+  hz(53),hz(56),hz(60),hz(63),  hz(53),hz(56),hz(60),hz(63),
+  hz(53),hz(56),hz(60),hz(63),  hz(53),hz(56),hz(60),hz(63),
+  // bar 4: G7  (G3,B3,D4,F4)
+  hz(55),hz(59),hz(62),hz(65),  hz(55),hz(59),hz(62),hz(65),
+  hz(55),hz(59),hz(62),hz(65),  hz(55),hz(59),hz(62),hz(65),
 ];
 
-const KICK_SEQ  = [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,  1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0];
-const SNARE_SEQ = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
-const HIHAT_SEQ = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0,  1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];
+// Pad: triangle wave, quarter-note chord tones, outlines harmony
+const PAD_SEQ = [
+  hz(60),R,R,R,  hz(63),R,R,R,  hz(67),R,R,R,  hz(63),R,R,R,  // bar 1: Cm
+  hz(68),R,R,R,  hz(72),R,R,R,  hz(75),R,R,R,  hz(72),R,R,R,  // bar 2: Ab
+  hz(65),R,R,R,  hz(68),R,R,R,  hz(72),R,R,R,  hz(68),R,R,R,  // bar 3: Fm
+  hz(67),R,R,R,  hz(71),R,R,R,  hz(74),R,R,R,  hz(71),R,R,R,  // bar 4: G
+];
+
+// Drums: 64 steps, pattern repeats every 16 (one bar)
+const KICK_SEQ  = Array.from({length:64}, (_,i) => (i%16===0 || i%16===8)  ? 1 : 0);
+const SNARE_SEQ = Array.from({length:64}, (_,i) => (i%16===4 || i%16===12) ? 1 : 0);
+const HIHAT_SEQ = Array.from({length:64}, (_,i) => i%2===0 ? 1 : 0);
 
 // Shared noise buffer (reused for all percussion)
 const _noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
@@ -319,6 +338,7 @@ const _noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
 const bgmBass   = AC.createGain(); bgmBass.connect(comp);
 const bgmMelody = AC.createGain(); bgmMelody.connect(comp);
 const bgmArp    = AC.createGain(); bgmArp.connect(comp);
+const bgmPad    = AC.createGain(); bgmPad.connect(comp);
 const bgmKick   = AC.createGain(); bgmKick.connect(comp);
 const bgmSnare  = AC.createGain(); bgmSnare.connect(comp);
 const bgmHihat  = AC.createGain(); bgmHihat.connect(comp);
@@ -326,6 +346,7 @@ const bgmHihat  = AC.createGain(); bgmHihat.connect(comp);
 bgmBass.gain.value   = 0.20;
 bgmMelody.gain.value = 0.18;
 bgmArp.gain.value    = 0.05;
+bgmPad.gain.value    = 0.13;
 bgmKick.gain.value   = 0.17;
 bgmSnare.gain.value  = 0.12;
 bgmHihat.gain.value  = 0.10;
@@ -394,6 +415,17 @@ function schedSnare(t) {
   o.start(t); o.stop(t + 0.1);
 }
 
+function schedPad(t, freq, dur) {
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.001, t);
+  g.gain.linearRampToValueAtTime(0.7, t + 0.015);   // snappy attack
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  const o = AC.createOscillator(); o.type = 'triangle';
+  o.frequency.value = freq * _melodyPitch;           // also follows octave shift
+  o.connect(g); g.connect(bgmPad);
+  o.start(t); o.stop(t + dur + 0.01);
+}
+
 function schedHihat(t) {
   const ns = AC.createBufferSource(); ns.buffer = _noiseBuf;
   const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000;
@@ -408,10 +440,11 @@ let _melodyPitch = 1.0;  // dynamic octave multiplier, updated per frame
 
 function _runSeq() {
   while (_nextT < AC.currentTime + AHEAD) {
-    const i = _step % 32;
+    const i = _step % 64;
     const t = _nextT;
     if (BASS_SEQ[i])   schedBass(t, BASS_SEQ[i], noteDur(BASS_SEQ, i, 4));
     if (MELODY_SEQ[i]) schedMelody(t, MELODY_SEQ[i], noteDur(MELODY_SEQ, i, 4));
+    if (PAD_SEQ[i])    schedPad(t, PAD_SEQ[i], noteDur(PAD_SEQ, i, 8));
     schedArp(t, ARP_SEQ[i]);
     if (KICK_SEQ[i])   schedKick(t);
     if (SNARE_SEQ[i])  schedSnare(t);
@@ -437,11 +470,12 @@ function updateBGMMix(size) {
   // Melody octave: size=0.3 → ×2.0(+1oct), size=1.0 → ×1.0, size=3.0 → ×0.5(−1oct)
   _melodyPitch = Math.pow(2, Math.max(-1, Math.min(1, (1.0 - size) * 0.75)));
 
-  bgmBass.gain.setTargetAtTime(  0.01 + t * 0.38, now, tau);
+  bgmBass.gain.setTargetAtTime(  0.01 + t * 0.38, now, tau);   // low: small→0.01, large→0.39
   bgmKick.gain.setTargetAtTime(  0.03 + t * 0.29, now, tau);
-  bgmArp.gain.setTargetAtTime(   0.08 - t * 0.06, now, tau);
-  bgmHihat.gain.setTargetAtTime( 0.18 - t * 0.14, now, tau);
-  bgmMelody.gain.setTargetAtTime(0.25 - t * 0.10, now, tau);
+  bgmPad.gain.setTargetAtTime(   0.08 + t * 0.10, now, tau);   // mid: slightly more at large
+  bgmArp.gain.setTargetAtTime(   0.08 - t * 0.06, now, tau);   // high: small→0.08, large→0.02
+  bgmHihat.gain.setTargetAtTime( 0.18 - t * 0.14, now, tau);   // high: small→0.18, large→0.04
+  bgmMelody.gain.setTargetAtTime(0.25 - t * 0.10, now, tau);   // melody + octave shift handles range
   bgmSnare.gain.setTargetAtTime( 0.12,             now, tau);
 }
 

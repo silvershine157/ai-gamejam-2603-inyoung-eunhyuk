@@ -932,6 +932,91 @@
     carGroup.position.copy(START_POS);
     carGroup.quaternion.copy(START_QUAT);
 
+    // ── Rival AI cars ─────────────────────────────────────────
+    const AI_LOOKAHEAD = 0.025;
+    const AI_TURN_RATE = 1.8;
+    const AI_ACCEL     = 14;
+
+    const _aiFwd      = new THREE.Vector3();
+    const _aiUp       = new THREE.Vector3();
+    const _aiTarget   = new THREE.Vector3();
+    const _aiSteering = new THREE.Quaternion();
+
+    function makeRivalCar(bodyColor, cabinColor, startT, maxSpeed) {
+      const group = new THREE.Group();
+      const matB = new THREE.MeshLambertMaterial({ color: bodyColor });
+      const matC = new THREE.MeshLambertMaterial({ color: cabinColor });
+      const matW = new THREE.MeshLambertMaterial({ color: 0x111111 });
+      const matR = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 4.0), matB);
+      body.position.y = 0.5; body.castShadow = true; group.add(body);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 1.9), matC);
+      cabin.position.set(0, 0.96, -0.25); cabin.castShadow = true; group.add(cabin);
+
+      [[-1.0, 0.3, 1.35], [1.0, 0.3, 1.35], [-1.0, 0.3, -1.35], [1.0, 0.3, -1.35]].forEach(([px, py, pz]) => {
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.24, 12), matW);
+        tire.rotation.z = Math.PI / 2; tire.position.set(px, py, pz); group.add(tire);
+        const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.25, 6), matR);
+        rim.rotation.z = Math.PI / 2; rim.position.set(px, py, pz); group.add(rim);
+      });
+
+      const frame = road.getFrameAt(startT);
+      group.position.copy(frame.point).setY(0);
+      setQuaternionFromForwardUp(group.quaternion, frame.tangent, WORLD_UP);
+      scene.add(group);
+
+      return {
+        group, maxSpeed,
+        speed: 0,
+        impactVelocity: new THREE.Vector3(),
+        radius: BASE_CAR_RADIUS,
+        trackT: startT,
+        lapCount: 0,
+        prevFinishDot: null,
+      };
+    }
+
+    function updateRival(rival, dt) {
+      rival.speed = Math.min(rival.speed + AI_ACCEL * dt, rival.maxSpeed);
+
+      const proj = road.projectPoint(rival.group.position);
+      rival.trackT = proj.t;
+      const lookaheadFrame = road.getFrameAt(wrap01(rival.trackT + AI_LOOKAHEAD));
+
+      getForward(rival.group.quaternion, _aiFwd);
+      _aiTarget.copy(lookaheadFrame.point).sub(rival.group.position).setY(0);
+      if (_aiTarget.lengthSq() > 1e-6) _aiTarget.normalize();
+      getUp(rival.group.quaternion, _aiUp);
+
+      const cross = _aiFwd.x * _aiTarget.z - _aiFwd.z * _aiTarget.x;
+      if (Math.abs(cross) > 0.001) {
+        const speedFrac = rival.speed / rival.maxSpeed;
+        _aiSteering.setFromAxisAngle(_aiUp, AI_TURN_RATE * dt * speedFrac * Math.sign(cross));
+        rival.group.quaternion.premultiply(_aiSteering).normalize();
+      }
+
+      advanceCarWithCollisions(dt, rival);
+      rival.group.position.y = 0;
+
+      // Rival lap detection
+      tempA.copy(rival.group.position).sub(finishFrame.point);
+      const longitudinal = tempA.dot(finishFrame.tangent);
+      const lateral = Math.abs(tempA.dot(finishFrame.right));
+      const nearLine = lateral <= road.halfWidth + 0.5 && Math.abs(longitudinal) <= 2.5;
+      if (rival.prevFinishDot !== null && rival.prevFinishDot < 0 && longitudinal >= 0 && nearLine) {
+        rival.lapCount++;
+      }
+      rival.prevFinishDot = longitudinal;
+    }
+
+    const rivals = [
+      makeRivalCar(0xc0392b, 0xe74c3c, 0.97, P.baseMaxSpeed * 0.82),
+      makeRivalCar(0x27ae60, 0x2ecc71, 0.94, P.baseMaxSpeed * 0.90),
+      makeRivalCar(0xe67e22, 0xf39c12, 0.91, P.baseMaxSpeed * 0.86),
+    ];
+
     // ── Targets ───────────────────────────────────────────────
     const targets = [];
 
@@ -1144,6 +1229,7 @@
     const sizeLabelEl = document.getElementById('size-label');
     const spdEl      = document.getElementById('spd');
     const offRoadEl  = document.getElementById('offroad');
+    const rankEl     = document.getElementById('rank');
     const scoreEl    = document.getElementById('score');
 
     function updateHUD() {
@@ -1218,6 +1304,14 @@
     const safeSnapshots = [];
     const collisionState = {
       kind: '', normal: new THREE.Vector3(), penetration: 0, restitution: 0, speedRetention: 1,
+    };
+
+    // Player adapter — bridges global player state into the carState API
+    const _playerAdapter = {
+      group: carGroup,
+      speed: 0,
+      impactVelocity,   // same reference as the module-level vector
+      radius: BASE_CAR_RADIUS,
     };
 
     function getForward(quat, out) {
@@ -1339,33 +1433,33 @@
       return found ? out : null;
     }
 
-    function applyImpactResponse(velocity, hit) {
+    function applyImpactResponse(velocity, hit, cs) {
       const normalSpeed = velocity.dot(hit.normal);
       if (normalSpeed >= 0) return;
-      speed *= hit.speedRetention;
-      impactVelocity.addScaledVector(hit.normal, -normalSpeed * (1 + hit.restitution));
-      const impactSpeed = impactVelocity.length();
-      if (impactSpeed > MAX_IMPACT_SPEED) impactVelocity.multiplyScalar(MAX_IMPACT_SPEED / impactSpeed);
+      cs.speed *= hit.speedRetention;
+      cs.impactVelocity.addScaledVector(hit.normal, -normalSpeed * (1 + hit.restitution));
+      const impactSpeed = cs.impactVelocity.length();
+      if (impactSpeed > MAX_IMPACT_SPEED) cs.impactVelocity.multiplyScalar(MAX_IMPACT_SPEED / impactSpeed);
     }
 
-    function advanceCarWithCollisions(dt) {
+    function advanceCarWithCollisions(dt, cs) {
       const impactDamping = Math.max(0, 1 - IMPACT_DRAG * dt);
-      impactVelocity.multiplyScalar(impactDamping);
-      if (impactVelocity.lengthSq() < 1e-4) impactVelocity.set(0, 0, 0);
+      cs.impactVelocity.multiplyScalar(impactDamping);
+      if (cs.impactVelocity.lengthSq() < 1e-4) cs.impactVelocity.set(0, 0, 0);
 
-      getCarForward(carForward);
-      driveVelocity.copy(carForward).multiplyScalar(speed);
-      totalVelocity.copy(driveVelocity).add(impactVelocity);
+      getForward(cs.group.quaternion, carForward);
+      driveVelocity.copy(carForward).multiplyScalar(cs.speed);
+      totalVelocity.copy(driveVelocity).add(cs.impactVelocity);
 
       const moveDistance = totalVelocity.length() * dt;
       const stepCount = Math.max(1, Math.min(12, Math.ceil(moveDistance / COLLISION_SUBSTEP_DIST)));
       const stepDt = dt / stepCount;
 
       for (let i = 0; i < stepCount; i++) {
-        tempF.copy(carGroup.position);
-        getCarForward(carForward);
-        driveVelocity.copy(carForward).multiplyScalar(speed);
-        totalVelocity.copy(driveVelocity).add(impactVelocity);
+        tempF.copy(cs.group.position);
+        getForward(cs.group.quaternion, carForward);
+        driveVelocity.copy(carForward).multiplyScalar(cs.speed);
+        totalVelocity.copy(driveVelocity).add(cs.impactVelocity);
         candidateCarPos.copy(tempF).addScaledVector(totalVelocity, stepDt);
 
         collisionFallbackNormal.copy(totalVelocity).setY(0);
@@ -1375,23 +1469,23 @@
           collisionFallbackNormal.copy(carForward).negate();
         }
 
-        const hit = findCollision(candidateCarPos, collisionFallbackNormal, collisionState);
-        if (!hit) { carGroup.position.copy(candidateCarPos); continue; }
+        const hit = findCollision(candidateCarPos, collisionFallbackNormal, collisionState, cs.radius);
+        if (!hit) { cs.group.position.copy(candidateCarPos); continue; }
 
         let low = 0, high = 1;
         for (let j = 0; j < COLLISION_BINARY_STEPS; j++) {
           const mid = (low + high) * 0.5;
           collisionProbePos.lerpVectors(tempF, candidateCarPos, mid);
-          if (findCollision(collisionProbePos, collisionFallbackNormal, collisionState)) high = mid;
+          if (findCollision(collisionProbePos, collisionFallbackNormal, collisionState, cs.radius)) high = mid;
           else low = mid;
         }
 
         collisionSafePos.lerpVectors(tempF, candidateCarPos, low);
         collisionProbePos.lerpVectors(tempF, candidateCarPos, high);
-        const resolvedHit = findCollision(collisionProbePos, collisionFallbackNormal, collisionState) || hit;
+        const resolvedHit = findCollision(collisionProbePos, collisionFallbackNormal, collisionState, cs.radius) || hit;
 
-        carGroup.position.copy(collisionSafePos).addScaledVector(resolvedHit.normal, COLLISION_PUSH_EPS);
-        applyImpactResponse(totalVelocity, resolvedHit);
+        cs.group.position.copy(collisionSafePos).addScaledVector(resolvedHit.normal, COLLISION_PUSH_EPS);
+        applyImpactResponse(totalVelocity, resolvedHit, cs);
         return;
       }
     }
@@ -1489,7 +1583,10 @@
       }
 
       previousCarPos.copy(carGroup.position);
-      advanceCarWithCollisions(dt);
+      _playerAdapter.speed = speed;
+      _playerAdapter.radius = currentCarRadius;
+      advanceCarWithCollisions(dt, _playerAdapter);
+      speed = _playerAdapter.speed;
 
       const travelDist = carGroup.position.distanceTo(previousCarPos) * Math.sign(speed || 1);
       const wheelR = 0.3 * sizeScaleDisp;
@@ -1536,6 +1633,14 @@
       spdEl.textContent = Math.abs(speed * 3.6).toFixed(0);
       updateFinishState(carGroup.position);
       updateHUD();
+
+      // ── Rivals ────────────────────────────────────────────
+      for (const rival of rivals) updateRival(rival, dt);
+
+      // ── Rank display ──────────────────────────────────────
+      const playerProg = lapCount + road.projectPoint(carGroup.position).t;
+      const ahead = rivals.filter(r => r.lapCount + r.trackT > playerProg).length;
+      rankEl.textContent = `${ahead + 1} / ${rivals.length + 1}`;
 
       // ── Projectiles ───────────────────────────────────────
       for (let i = projectiles.length - 1; i >= 0; i--) {
