@@ -2059,6 +2059,8 @@
 
       countdownEl.textContent = COUNTDOWN_STEPS[countdownIndex];
       countdownEl.classList.add('visible');
+      AC.resume();
+      playCountdownBeep(countdownIndex === COUNTDOWN_STEPS.length - 1);
     }
 
     syncCountdown();
@@ -2318,6 +2320,22 @@
       osc3.connect(gain3);
       osc3.start(now);
       osc3.stop(now + 0.1);
+    }
+
+    // ── Countdown beep SFX ────────────────────────────────────
+    function playCountdownBeep(isGo) {
+      const now = AC.currentTime;
+      if (isGo) {
+        // 띵 — higher, longer chime
+        const g = AC.createGain(); g.gain.setValueAtTime(0.55, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.9); g.connect(comp);
+        const o = AC.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(1320, now); o.frequency.exponentialRampToValueAtTime(880, now + 0.7); o.connect(g); o.start(now); o.stop(now + 0.95);
+        const g2 = AC.createGain(); g2.gain.setValueAtTime(0.3, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.6); g2.connect(comp);
+        const o2 = AC.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 2640; o2.connect(g2); o2.start(now); o2.stop(now + 0.65);
+      } else {
+        // 삡 — short sharp beep
+        const g = AC.createGain(); g.gain.setValueAtTime(0.45, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.18); g.connect(comp);
+        const o = AC.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(880, now); o.frequency.exponentialRampToValueAtTime(660, now + 0.14); o.connect(g); o.start(now); o.stop(now + 0.2);
+      }
     }
 
     const BPM = 170;
