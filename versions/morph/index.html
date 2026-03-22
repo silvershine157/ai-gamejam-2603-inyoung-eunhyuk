@@ -178,10 +178,12 @@
       <div class="bar-bg"><div class="bar-fill" id="bar-turn" style="width:38%;background:#cc88ff"></div></div>
       <span class="val" id="val-turn">100</span>
     </div>
+    <div><span class="label">SCORE  </span><span class="val" id="score">0</span><span class="label" id="score-total"></span></div>
     <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
-    <div><span class="label">Q/E   </span>shrink / grow</div>
+    <div><span class="label">X/Z   </span>grow / shrink</div>
     <div><span class="label">WASD  </span>drive</div>
-    <div><span class="label">Tab   </span>toggle params</div>
+    <div><span class="label">SPACE </span>fire</div>
+    <div><span class="label">Tab   </span>params</div>
   </div>
 
   <div id="size-indicator">
@@ -224,6 +226,11 @@
       turnTiny  : 2.5,  turnGiant  : 0.4,
       hpTiny    : 0.3,  hpGiant    : 3.0,
       atkTiny   : 0.2,  atkGiant   : 3.0,
+
+      // Cannon
+      projSpeed    : 50,
+      projRadius   : 0.22,
+      projLifetime : 5.0,
     };
 
     // Live params object — modified by control panel sliders
@@ -287,6 +294,14 @@
         rows: [
           ['Tiny mult',  'atkTiny',  0.05, 2.0, 0.05],
           ['Giant mult', 'atkGiant', 0.5,  5.0, 0.1 ],
+        ]
+      },
+      {
+        title: 'Cannon',
+        rows: [
+          ['Proj Speed',    'projSpeed',    10, 120, 1   ],
+          ['Proj Radius',   'projRadius',   0.05, 1.0, 0.01],
+          ['Proj Lifetime', 'projLifetime',  1,  12, 0.5 ],
         ]
       },
     ];
@@ -606,6 +621,20 @@
       l.position.set(x, 0.55, 2.03); carGroup.add(l);
     });
 
+    // Cannon barrel — mounted on car nose, points along +Z (forward)
+    const matCannon = new THREE.MeshLambertMaterial({ color: 0x222233 });
+    const cannonMount = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.3), matCannon);
+    cannonMount.position.set(0, 0.72, 1.95); carGroup.add(cannonMount);
+    const cannonBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.065, 0.09, 1.1, 8),
+      matCannon
+    );
+    // CylinderGeometry defaults to Y-axis; rotate to point along +Z
+    cannonBarrel.rotation.x = Math.PI / 2;
+    cannonBarrel.position.set(0, 0.72, 2.55); // tip reaches z≈3.1 in local space
+    cannonBarrel.castShadow = true;
+    carGroup.add(cannonBarrel);
+
     const wheels = [];
     [[-1.0,0.3,1.35],[1.0,0.3,1.35],[-1.0,0.3,-1.35],[1.0,0.3,-1.35]].forEach(pos => {
       const g = new THREE.Group();
@@ -625,6 +654,162 @@
 
     carGroup.position.set(TRACK_RADIUS, 0, -TRACK_HALF_LEN + 3);
     let carAngle = 0;
+
+    // ── Targets ───────────────────────────────────────────────
+    // Each entry: { mesh, hitRadius (XZ), pos (world Vector3 at center) }
+    const targets = [];
+
+    function makeBarrel(x, z) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.38, 0.44, 1.4, 10),
+        new THREE.MeshLambertMaterial({ color: 0xcc3311 })
+      );
+      body.position.y = 0.7; body.castShadow = true; g.add(body);
+      [0.25, 0.85, 1.25].forEach(y => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.43, 0.05, 4, 14),
+          new THREE.MeshLambertMaterial({ color: 0x887755 })
+        );
+        ring.rotation.x = Math.PI / 2; ring.position.y = y; g.add(ring);
+      });
+      g.position.set(x, 0, z); scene.add(g);
+      targets.push({ mesh: g, hitRadius: 0.6, pos: new THREE.Vector3(x, 0, z) });
+    }
+
+    function makeCrate(x, z) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 1.2, 1.2),
+        new THREE.MeshLambertMaterial({ color: 0xa07830 })
+      );
+      body.position.y = 0.6; body.castShadow = true; g.add(body);
+      // cross planks on each face
+      const plankMat = new THREE.MeshLambertMaterial({ color: 0x6b4010 });
+      [[1.22,0.06,0.4],[0.4,0.06,1.22]].forEach(([w,,d], i) => {
+        [-0.2, 0.2].forEach(dy => {
+          const p = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), plankMat);
+          p.position.y = 0.6 + dy; g.add(p);
+        });
+      });
+      g.position.set(x, 0, z); scene.add(g);
+      targets.push({ mesh: g, hitRadius: 0.75, pos: new THREE.Vector3(x, 0, z) });
+    }
+
+    function makePoleTarget(x, z) {
+      const g = new THREE.Group();
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.09, 3.4, 7),
+        new THREE.MeshLambertMaterial({ color: 0x445566 })
+      );
+      pole.position.y = 1.7; g.add(pole);
+      // disc face
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.85, 0.85, 0.1, 18),
+        new THREE.MeshLambertMaterial({ color: 0xeeee22 })
+      );
+      disc.position.y = 3.3; disc.castShadow = true; g.add(disc);
+      // bullseye rings
+      [[0.55, 0.09, 0xdd2211], [0.28, 0.07, 0xdd2211]].forEach(([r, t, c]) => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(r, t, 4, 18),
+          new THREE.MeshLambertMaterial({ color: c })
+        );
+        ring.position.y = 3.35; ring.rotation.x = Math.PI / 2; g.add(ring);
+      });
+      g.position.set(x, 0, z); scene.add(g);
+      // hitRadius large enough for the disc; use XZ collision so height doesn't matter
+      targets.push({ mesh: g, hitRadius: 0.9, pos: new THREE.Vector3(x, 0, z) });
+    }
+
+    const balloonColors = [0xff3366, 0xff9900, 0x33ccff, 0xcc44ff, 0x44ff99];
+    let _balloonIdx = 0;
+    function makeBalloon(x, z) {
+      const color = balloonColors[_balloonIdx++ % balloonColors.length];
+      const g = new THREE.Group();
+      const string = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 2.2, 4),
+        new THREE.MeshLambertMaterial({ color: 0xcccccc })
+      );
+      string.position.y = 1.1; g.add(string);
+      const balloon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.72, 12, 9),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      balloon.position.y = 2.8; balloon.castShadow = true; g.add(balloon);
+      // highlight sheen
+      const sheen = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 6, 5),
+        new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 })
+      );
+      sheen.position.set(0.22, 3.0, 0.42); g.add(sheen);
+      // knot at bottom
+      const knot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 5, 4),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      knot.position.y = 2.1; g.add(knot);
+      g.position.set(x, 0, z); scene.add(g);
+      targets.push({ mesh: g, hitRadius: 0.78, pos: new THREE.Vector3(x, 0, z) });
+    }
+
+    // ── Place targets ─────────────────────────────────────────
+    // Infield (inside the oval, roughly |x|<17, |z|<33)
+    makeBarrel(0, 5);       makeBarrel(-6, 2);      makeBarrel(4, -9);
+    makeCrate(7, 3);        makeCrate(-9, -8);      makeCrate(11, -14);
+    makePoleTarget(0, 19);  makePoleTarget(0, -20);
+    makeBalloon(8, 14);     makeBalloon(-8, 14);    makeBalloon(3, -5);
+    // Outer grass areas
+    makeCrate(36, 3);       makeCrate(-36, 3);
+    makeBarrel(31, 24);     makeBarrel(-31, 24);
+    makePoleTarget(0, 54);  makePoleTarget(0, -53);
+    makeBalloon(28, -18);   makeBalloon(-28, -18);
+
+    const TOTAL_TARGETS = targets.length;
+    document.getElementById('score-total').textContent = ' / ' + TOTAL_TARGETS;
+
+    // ── Projectile system ─────────────────────────────────────
+    const projectiles = [];   // { mesh, vel:Vector3, life }
+    const hitEffects  = [];   // { mesh, life, maxLife }
+
+    const projMat = new THREE.MeshLambertMaterial({ color: 0xffdd44, emissive: 0xaa7700 });
+
+    function fireCannon() {
+      const fwd = new THREE.Vector3(Math.sin(carAngle), 0, Math.cos(carAngle));
+      // Spawn at world position of cannon tip (front of car, scaled)
+      const spawnPos = new THREE.Vector3(
+        carGroup.position.x + fwd.x * (sizeScaleDisp * 3.2),
+        sizeScaleDisp * 0.72,
+        carGroup.position.z + fwd.z * (sizeScaleDisp * 3.2)
+      );
+      const proj = new THREE.Mesh(new THREE.SphereGeometry(P.projRadius, 8, 6), projMat);
+      proj.position.copy(spawnPos);
+      proj.castShadow = true;
+      scene.add(proj);
+      projectiles.push({
+        mesh: proj,
+        vel: fwd.clone().multiplyScalar(P.projSpeed),
+        life: P.projLifetime,
+      });
+    }
+
+    function spawnHitEffect(worldPos) {
+      // Two expanding rings at impact point
+      [
+        { r: 0.5, t: 0.15, color: 0xffaa22, life: 0.45 },
+        { r: 0.3, t: 0.1,  color: 0xffffff, life: 0.30 },
+      ].forEach(({ r, t, color, life }) => {
+        const mesh = new THREE.Mesh(
+          new THREE.TorusGeometry(r, t, 4, 16),
+          new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 1.0 })
+        );
+        mesh.position.copy(worldPos);
+        mesh.position.y = Math.max(worldPos.y, 0.3);
+        mesh.rotation.x = Math.PI / 2;
+        scene.add(mesh);
+        hitEffects.push({ mesh, life, maxLife: life });
+      });
+    }
 
     // ── Size gimmick state ────────────────────────────────────
     let sizeScale     = 1.0;   // logical size
@@ -749,9 +934,14 @@
 
     // ── Input ─────────────────────────────────────────────────
     const keys = {};
+    let score = 0;
+    const scoreEl = document.getElementById('score');
+
     window.addEventListener('keydown', e => {
       if (e.code === 'Tab') return;
       keys[e.code] = true;
+      // Fire on initial press only (not key-repeat)
+      if (e.code === 'Space' && !e.repeat) fireCannon();
       e.preventDefault();
     });
     window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -764,9 +954,9 @@
 
     // ── Update ────────────────────────────────────────────────
     function update(dt) {
-      // Size input
-      if (keys['KeyE']) sizeScale = Math.min(sizeScale + P.sizeRate * dt, P.sizeMax);
-      if (keys['KeyQ']) sizeScale = Math.max(sizeScale - P.sizeRate * dt, P.sizeMin);
+      // Size input — X = grow, Z = shrink
+      if (keys['KeyX']) sizeScale = Math.min(sizeScale + P.sizeRate * dt, P.sizeMax);
+      if (keys['KeyZ']) sizeScale = Math.max(sizeScale - P.sizeRate * dt, P.sizeMin);
 
       // Clamp in case sizeMin/sizeMax slider moved
       sizeScale = Math.max(P.sizeMin, Math.min(P.sizeMax, sizeScale));
@@ -827,6 +1017,48 @@
       spdEl.textContent = Math.abs(speed * 3.6).toFixed(0);
       checkFinishLine(carGroup.position);
       updateHUD();
+
+      // ── Projectiles ──────────────────────────────────────────
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        p.life -= dt;
+        p.mesh.position.addScaledVector(p.vel, dt);
+
+        // XZ-only collision against targets (height-agnostic for POC)
+        let hit = false;
+        for (let j = targets.length - 1; j >= 0; j--) {
+          const tgt = targets[j];
+          const dx = p.mesh.position.x - tgt.pos.x;
+          const dz = p.mesh.position.z - tgt.pos.z;
+          if (Math.sqrt(dx*dx + dz*dz) < tgt.hitRadius + P.projRadius) {
+            spawnHitEffect(p.mesh.position.clone());
+            scene.remove(tgt.mesh);
+            targets.splice(j, 1);
+            score++;
+            scoreEl.textContent = score;
+            hit = true;
+            break;
+          }
+        }
+
+        if (hit || p.life <= 0) {
+          scene.remove(p.mesh);
+          projectiles.splice(i, 1);
+        }
+      }
+
+      // ── Hit effects ──────────────────────────────────────────
+      for (let i = hitEffects.length - 1; i >= 0; i--) {
+        const e = hitEffects[i];
+        e.life -= dt;
+        const t = 1 - e.life / e.maxLife;
+        e.mesh.scale.setScalar(1 + t * 4);
+        e.mesh.material.opacity = 1 - t;
+        if (e.life <= 0) {
+          scene.remove(e.mesh);
+          hitEffects.splice(i, 1);
+        }
+      }
     }
 
     // ── Render loop ───────────────────────────────────────────
