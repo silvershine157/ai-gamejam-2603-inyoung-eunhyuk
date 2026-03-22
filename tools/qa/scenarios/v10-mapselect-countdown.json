@@ -1,0 +1,12 @@
+{
+  "name": "v10-mapselect-countdown",
+  "description": "Select a map, wait through the start countdown, then drive.",
+  "steps": [
+    { "type": "wait_for_selector", "selector": "#map-menu .map-option[data-map='grandprix']" },
+    { "type": "click", "selector": "#map-menu .map-option[data-map='grandprix']", "expectNavigation": true, "navigationWaitMs": 1000 },
+    { "type": "wait", "ms": 3600, "label": "countdown" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 2200, "label": "launch straight" },
+    { "type": "hold", "keys": ["KeyW", "KeyD"], "ms": 1500, "label": "first bend" },
+    { "type": "wait", "ms": 800, "label": "cooldown" }
+  ]
+}

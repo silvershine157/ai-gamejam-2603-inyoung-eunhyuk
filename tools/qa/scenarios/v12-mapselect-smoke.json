@@ -1,0 +1,13 @@
+{
+  "name": "v12-mapselect-smoke",
+  "description": "Select the grand prix map, wait through countdown, and drive the validated loop.",
+  "steps": [
+    { "type": "wait_for_selector", "selector": "#map-menu .map-option[data-map='grandprix']" },
+    { "type": "click", "selector": "#map-menu .map-option[data-map='grandprix']", "expectNavigation": true, "navigationWaitMs": 1000 },
+    { "type": "wait", "ms": 3600, "label": "countdown" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1800, "label": "launch" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 1400, "label": "first arc" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1200, "label": "stabilize" },
+    { "type": "wait", "ms": 800, "label": "cooldown" }
+  ]
+}

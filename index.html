@@ -15,7 +15,6 @@
       overflow: hidden;
     }
 
-    /* Sidebar */
     #sidebar {
       width: 220px;
       min-width: 220px;
@@ -25,6 +24,8 @@
       flex-direction: column;
       padding: 20px 12px;
       gap: 8px;
+      overflow-y: auto;
+      scrollbar-width: thin;
     }
     #sidebar h1 {
       font-size: 14px;
@@ -67,7 +68,6 @@
     }
     .version-btn.active .tag { color: #4a8fd4; }
 
-    /* Game area */
     #game-area {
       flex: 1;
       display: flex;
@@ -77,7 +77,6 @@
     }
     #game-wrapper {
       position: relative;
-      /* 16:9 aspect ratio, fills available space */
       width: min(calc(100vh * 16 / 9), 100%);
       aspect-ratio: 16 / 9;
       background: #000;
@@ -109,12 +108,12 @@
   <nav id="sidebar">
     <h1>Versions</h1>
     <button class="version-btn" data-src="versions/v1/index.html" onclick="loadVersion(this)">
-      v1 — Basic Drive
-      <span class="tag">Flat terrain · follow cam</span>
+      v1 - Basic Drive
+      <span class="tag">Flat terrain - follow cam</span>
     </button>
     <button class="version-btn" data-src="versions/v2/index.html" onclick="loadVersion(this)">
-      v2 — Road &amp; Obstacles
-      <span class="tag">Track · trees · shadows</span>
+      v2 - Road &amp; Obstacles
+      <span class="tag">Track - trees - shadows</span>
     </button>
     <button class="version-btn" data-src="versions/v3/index.html" onclick="loadVersion(this)">
       v3 - Track Collision
@@ -133,11 +132,11 @@
       <span class="tag">Contact-point stop, persistent rebound impulse, no instant heading flip</span>
     </button>
     <button class="version-btn" data-src="versions/bigsmall/index.html" onclick="loadVersion(this)">
-      bigsmall — Size Gimmick POC
-      <span class="tag">Phase 2 · size + cannon · live stats</span>
+      bigsmall - Size Gimmick POC
+      <span class="tag">Phase 2 - size + cannon - live stats</span>
     </button>
     <button class="version-btn" data-src="versions/bigsmall2/index.html" onclick="loadVersion(this)">
-      bigsmall2 — Size × v6 Physics
+      bigsmall2 - Size x v6 Physics
       <span class="tag">v6 collision engine + size gimmick + cannon</span>
     </button>
     <button class="version-btn" data-src="versions/rivals/index.html" onclick="loadVersion(this)">
@@ -145,8 +144,32 @@
       <span class="tag">3 rival cars · AI steering · rank HUD</span>
     </button>
     <button class="version-btn" data-src="versions/sound_test/index.html" onclick="loadVersion(this)">
-      sound_test — Chiptune Audio Lab
-      <span class="tag">Engine · fire · hit SFX · oscilloscope</span>
+      sound_test - Chiptune Audio Lab
+      <span class="tag">Engine - fire - hit SFX - oscilloscope</span>
+    </button>
+    <button class="version-btn" data-src="versions/v7/index.html" onclick="loadVersion(this)">
+      v7 - Minimap HUD
+      <span class="tag">Top-right map overlay with live car heading</span>
+    </button>
+    <button class="version-btn" data-src="versions/v8/index.html" onclick="loadVersion(this)">
+      v8 - Multi Map
+      <span class="tag">Start menu map select, spline grand prix track, shortcut lane</span>
+    </button>
+    <button class="version-btn" data-src="versions/v9/index.html" onclick="loadVersion(this)">
+      v9 - Lap Validation
+      <span class="tag">Canonical spline progress tracking and invalid lap rejection</span>
+    </button>
+    <button class="version-btn" data-src="versions/v10/index.html" onclick="loadVersion(this)">
+      v10 - Race Start
+      <span class="tag">Map select plus start countdown before control unlock</span>
+    </button>
+    <button class="version-btn" data-src="versions/v11/index.html" onclick="loadVersion(this)">
+      v11 - Track Cleanup
+      <span class="tag">No shortcut, smoother grand prix loop, grandstand collision, simple lap count</span>
+    </button>
+    <button class="version-btn" data-src="versions/v12/index.html" onclick="loadVersion(this)">
+      v12 - Track Validation
+      <span class="tag">Validated non-intersecting grand prix loop with geometry guard</span>
     </button>
     <button class="version-btn" data-src="versions/add_sound_to_bs2/index.html" onclick="loadVersion(this)">
       add_sound_to_bs2 — Chiptune + Physics
@@ -168,7 +191,7 @@
 
   <script>
     function loadVersion(btn) {
-      document.querySelectorAll('.version-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.version-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
       const frame = document.getElementById('game-frame');

@@ -1,0 +1,11 @@
+{
+  "name": "v7-smoke",
+  "description": "Basic drive and minimap visibility check for v7.",
+  "steps": [
+    { "type": "wait", "ms": 900, "label": "settle" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 2200, "label": "launch straight" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 1400, "label": "left arc" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1300, "label": "recover" },
+    { "type": "wait", "ms": 700, "label": "stabilize" }
+  ]
+}

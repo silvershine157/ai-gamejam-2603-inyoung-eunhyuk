@@ -1,0 +1,14 @@
+{
+  "name": "v9-mapselect-smoke",
+  "description": "Select the grand prix map and drive enough to exercise the lap tracker state updates.",
+  "steps": [
+    { "type": "wait_for_selector", "selector": "#map-menu .map-option[data-map='grandprix']" },
+    { "type": "click", "selector": "#map-menu .map-option[data-map='grandprix']", "expectNavigation": true, "navigationWaitMs": 1000 },
+    { "type": "wait", "ms": 1000, "label": "settle" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 2200, "label": "launch straight" },
+    { "type": "hold", "keys": ["KeyW", "KeyD"], "ms": 1600, "label": "first bend" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1100, "label": "stabilize" },
+    { "type": "hold", "keys": ["KeyW", "KeyA"], "ms": 2000, "label": "progress sweep" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1200, "label": "cooldown straight" }
+  ]
+}

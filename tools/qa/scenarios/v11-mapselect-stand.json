@@ -1,0 +1,13 @@
+{
+  "name": "v11-mapselect-stand",
+  "description": "Select the grand prix map, wait through countdown, then turn toward the nearby grandstand.",
+  "steps": [
+    { "type": "wait_for_selector", "selector": "#map-menu .map-option[data-map='grandprix']" },
+    { "type": "click", "selector": "#map-menu .map-option[data-map='grandprix']", "expectNavigation": true, "navigationWaitMs": 1000 },
+    { "type": "wait", "ms": 3600, "label": "countdown" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1400, "label": "launch" },
+    { "type": "hold", "keys": ["KeyW", "KeyD"], "ms": 1800, "label": "move toward stand" },
+    { "type": "hold", "keys": ["KeyW"], "ms": 1000, "label": "observe impact" },
+    { "type": "wait", "ms": 800, "label": "cooldown" }
+  ]
+}

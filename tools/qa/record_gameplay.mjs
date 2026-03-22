@@ -7,8 +7,8 @@ const DEFAULT_EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 720;
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000';
-const DEFAULT_VERSION = 'v6';
-const DEFAULT_SCENARIO_FILE = path.join('tools', 'qa', 'scenarios', 'v6-smoke.json');
+const DEFAULT_VERSION = 'v12';
+const DEFAULT_SCENARIO_FILE = path.join('tools', 'qa', 'scenarios', 'v12-mapselect-smoke.json');
 
 function parseArgs(argv) {
   const options = {
@@ -67,7 +67,7 @@ function printHelp() {
   node tools/qa/record_gameplay.mjs [options]
 
 Options:
-  --version <name>         Version folder under /versions (default: v6)
+  --version <name>         Version folder under /versions (default: v12)
   --url <full-url>         Full target URL, overrides --base-url/--version
   --base-url <url>         Server base URL (default: http://127.0.0.1:8000)
   --scenario <file>        Scenario JSON path
@@ -135,6 +135,24 @@ async function runStep(page, step, stepLog) {
 
   if (step.type === 'wait') {
     await page.waitForTimeout(step.ms ?? 500);
+  } else if (step.type === 'wait_for_selector') {
+    await page.waitForSelector(step.selector, { timeout: step.timeoutMs ?? 15000 });
+  } else if (step.type === 'click') {
+    if (step.selector) {
+      await page.click(step.selector);
+    } else {
+      await page.mouse.click(step.x ?? 0, step.y ?? 0, {
+        button: step.button ?? 'left',
+        clickCount: step.clickCount ?? 1,
+      });
+    }
+    if (step.expectNavigation) {
+      await page.waitForLoadState('load');
+      await page.waitForTimeout(step.navigationWaitMs ?? 600);
+    }
+    if (step.ms) {
+      await page.waitForTimeout(step.ms);
+    }
   } else if (step.type === 'tap') {
     await page.keyboard.press(step.key);
     if (step.ms) {
