@@ -1085,7 +1085,10 @@
       const fwd = new THREE.Vector3();
       getForward(rival.group.quaternion, fwd);
       const toPlayer = carGroup.position.clone().sub(rival.group.position).setY(0);
-      const aimDir = toPlayer.lengthSq() > 0.01 ? toPlayer.normalize() : fwd;
+      if (toPlayer.lengthSq() < 0.01) return;
+      toPlayer.normalize();
+      // Only fire if player is within 90° frontal cone (dot > cos45° ≈ 0.707)
+      if (fwd.dot(toPlayer) < 0.707) return;
       const spawnPos = rival.group.position.clone()
         .addScaledVector(fwd, rival.sizeScale * 3.2)
         .setY(rival.sizeScale * 0.72);
@@ -1093,7 +1096,7 @@
       proj.position.copy(spawnPos);
       proj.castShadow = true;
       scene.add(proj);
-      rivalProjectiles.push({ mesh: proj, vel: aimDir.clone().multiplyScalar(P.projSpeed), life: P.projLifetime, dmg: rival.sizeScale * 15 });
+      rivalProjectiles.push({ mesh: proj, vel: toPlayer.clone().multiplyScalar(P.projSpeed), life: P.projLifetime, dmg: rival.sizeScale * 15 });
       playFire();
     }
 
@@ -1823,6 +1826,21 @@
       cs.impactVelocity.addScaledVector(hit.normal, -normalSpeed * (1 + hit.restitution));
       const impactSpeed = cs.impactVelocity.length();
       if (impactSpeed > MAX_IMPACT_SPEED) cs.impactVelocity.multiplyScalar(MAX_IMPACT_SPEED / impactSpeed);
+
+      // Wall/tree collision HP damage
+      const wallDmg = Math.abs(normalSpeed) * 1.8;
+      if (wallDmg > 1.0) {
+        if (cs.hp !== undefined) {
+          cs.hp = Math.max(0, cs.hp - wallDmg);
+          if (cs.hp <= 0 && cs.startT !== undefined) respawnRival(cs);
+          else if (cs.baseAccel !== undefined) cs.accel = cs.baseAccel * (0.3 + 0.7 * cs.hp / cs.maxHp);
+        } else {
+          // player
+          playerHP = Math.max(0, playerHP - wallDmg);
+          if (playerHP <= 0) { respawnCar(); playerHP = playerMaxHP; }
+        }
+        playCollision(Math.abs(normalSpeed));
+      }
     }
 
     function advanceCarWithCollisions(dt, cs) {
