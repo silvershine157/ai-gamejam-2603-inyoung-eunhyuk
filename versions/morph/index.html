@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>morph — Size Gimmick POC</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; }
+    canvas { display: block; }
+
+    /* ── Game HUD ─────────────────────────────────────────── */
+    #hud {
+      position: absolute;
+      top: 12px; left: 12px;
+      color: #fff;
+      font-family: monospace;
+      font-size: 13px;
+      background: rgba(0,0,0,0.55);
+      padding: 10px 16px;
+      border-radius: 8px;
+      line-height: 2;
+      pointer-events: none;
+      border: 1px solid rgba(255,255,255,0.08);
+      min-width: 224px;
+    }
+    #hud .label { color: #777; }
+    #hud .val   { color: #7eb8f7; font-weight: bold; }
+    .bar-row { display: flex; align-items: center; gap: 8px; }
+    .bar-bg  { flex: 1; height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.1s, background 0.1s; }
+
+    /* ── Size label ───────────────────────────────────────── */
+    #size-indicator {
+      position: absolute;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      font-family: monospace; font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      pointer-events: none;
+    }
+    #size-indicator .size-val {
+      font-size: 26px; font-weight: bold;
+      display: block; letter-spacing: 2px;
+      text-shadow: 0 0 12px rgba(255,255,255,0.5);
+    }
+
+    /* ── Lap message ──────────────────────────────────────── */
+    #msg {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: monospace; font-size: 22px; font-weight: bold;
+      color: #fff; background: rgba(0,0,0,0.65);
+      padding: 16px 32px; border-radius: 10px;
+      text-align: center; pointer-events: none; display: none;
+    }
+
+    /* ── Control panel toggle button ─────────────────────── */
+    #panel-toggle {
+      position: absolute; top: 12px; right: 12px;
+      font-family: monospace; font-size: 12px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #aaa; padding: 6px 12px; border-radius: 6px;
+      cursor: pointer; user-select: none;
+      transition: color 0.15s, border-color 0.15s;
+      z-index: 10;
+    }
+    #panel-toggle:hover { color: #fff; border-color: rgba(255,255,255,0.35); }
+
+    /* ── Control panel ────────────────────────────────────── */
+    #panel {
+      position: absolute; top: 44px; right: 12px;
+      width: 280px;
+      max-height: calc(100vh - 60px);
+      overflow-y: auto;
+      background: rgba(10,10,16,0.92);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      font-family: monospace; font-size: 11px; color: #ccc;
+      padding: 0 0 8px 0;
+      z-index: 9;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.15) transparent;
+    }
+    #panel.hidden { display: none; }
+
+    .panel-section {
+      padding: 8px 14px 4px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .panel-section:last-child { border-bottom: none; }
+    .panel-section-title {
+      font-size: 10px; letter-spacing: 0.1em;
+      text-transform: uppercase; color: #555;
+      margin-bottom: 6px;
+    }
+
+    .param-row {
+      display: grid;
+      grid-template-columns: 108px 1fr 40px 46px;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+    .pdiff {
+      font-size: 10px; font-weight: bold;
+      text-align: right; white-space: nowrap;
+      min-width: 46px;
+    }
+    .param-row label { color: #888; font-size: 11px; white-space: nowrap; }
+    .param-row input[type=range] {
+      width: 100%; height: 4px; appearance: none;
+      background: rgba(255,255,255,0.12); border-radius: 2px;
+      outline: none; cursor: pointer;
+    }
+    .param-row input[type=range]::-webkit-slider-thumb {
+      appearance: none; width: 12px; height: 12px;
+      border-radius: 50%; background: #7eb8f7; cursor: pointer;
+    }
+    .param-row .pval {
+      color: #7eb8f7; font-weight: bold; text-align: right;
+      font-size: 11px;
+    }
+
+    .curve-header {
+      display: grid;
+      grid-template-columns: 108px 1fr 40px;
+      gap: 6px; margin-bottom: 2px;
+    }
+    .curve-header span { font-size: 9px; color: #444; text-align: center; }
+    .curve-header span:last-child { text-align: right; }
+
+    .panel-footer {
+      padding: 8px 14px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex; gap: 6px;
+    }
+    .panel-btn {
+      flex: 1; padding: 6px 0;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px; color: #888;
+      font-family: monospace; font-size: 11px;
+      cursor: pointer; text-align: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .panel-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .panel-btn.accent { border-color: rgba(100,180,255,0.3); color: #7eb8f7; }
+    .panel-btn.accent:hover { background: rgba(100,180,255,0.1); color: #aad4ff; }
+  </style>
+</head>
+<body>
+
+  <!-- Game HUD -->
+  <div id="hud">
+    <div><span class="label">SPEED  </span><span class="val" id="spd">0</span> <span class="label">km/h</span></div>
+    <div><span class="label">LAPS   </span><span class="val" id="laps">0</span></div>
+    <div><span class="label">BEST   </span><span class="val" id="best">--:--</span></div>
+    <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
+    <div class="bar-row">
+      <span class="label" style="width:42px">SIZE</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-size" style="width:38%;background:#aad4ff"></div></div>
+      <span class="val" id="val-size">1.00×</span>
+    </div>
+    <div class="bar-row">
+      <span class="label" style="width:42px">HP</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width:38%;background:#66dd88"></div></div>
+      <span class="val" id="val-hp">100</span>
+    </div>
+    <div class="bar-row">
+      <span class="label" style="width:42px">ATK</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-atk" style="width:38%;background:#ff9944"></div></div>
+      <span class="val" id="val-atk">100</span>
+    </div>
+    <div class="bar-row">
+      <span class="label" style="width:42px">TURN</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-turn" style="width:38%;background:#cc88ff"></div></div>
+      <span class="val" id="val-turn">100</span>
+    </div>
+    <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
+    <div><span class="label">Q/E   </span>shrink / grow</div>
+    <div><span class="label">WASD  </span>drive</div>
+    <div><span class="label">Tab   </span>toggle params</div>
+  </div>
+
+  <div id="size-indicator">
+    <span class="size-val" id="size-label">NORMAL</span>
+  </div>
+
+  <div id="msg"></div>
+
+  <!-- Panel toggle button -->
+  <button id="panel-toggle">⚙ Params</button>
+
+  <!-- Control panel (built by JS) -->
+  <div id="panel" class="hidden"></div>
+
+  <script type="importmap">
+  { "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js" } }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    // ── Tunable parameters ────────────────────────────────────
+    const DEFAULTS = {
+      // Size system
+      sizeRate  : 1.5,   // units/sec while key held
+      sizeMin   : 0.4,
+      sizeMax   : 2.5,
+      sizeLerp  : 8,     // visual lerp speed (higher = snappier)
+
+      // Driving base (at size 1.0×)
+      baseMaxSpeed : 28,
+      baseAccel    : 14,
+      baseBrake    : 22,
+      baseFriction : 6,
+      baseTurnRate : 1.8,
+
+      // Attribute curves — value at tiny (sizeMin) and at giant (sizeMax)
+      speedTiny : 1.5,  speedGiant : 0.7,
+      accelTiny : 1.5,  accelGiant : 0.6,
+      turnTiny  : 2.5,  turnGiant  : 0.4,
+      hpTiny    : 0.3,  hpGiant    : 3.0,
+      atkTiny   : 0.2,  atkGiant   : 3.0,
+    };
+
+    // Live params object — modified by control panel sliders
+    const P = { ...DEFAULTS };
+
+    // ── Control panel builder ─────────────────────────────────
+    const panelEl  = document.getElementById('panel');
+    const toggleEl = document.getElementById('panel-toggle');
+
+    // Schema: [ label, key, min, max, step, display? ]
+    const PANEL_SCHEMA = [
+      {
+        title: 'Size System',
+        rows: [
+          ['Size Rate',    'sizeRate',  0.2,  5.0,  0.05],
+          ['Size Min',     'sizeMin',   0.1,  1.0,  0.05],
+          ['Size Max',     'sizeMax',   1.0,  4.0,  0.1 ],
+          ['Visual Lerp',  'sizeLerp',  1,    20,   0.5 ],
+        ]
+      },
+      {
+        title: 'Driving Base (at 1×)',
+        rows: [
+          ['Max Speed',    'baseMaxSpeed',  5,   60,  1  ],
+          ['Acceleration', 'baseAccel',     2,   30,  0.5],
+          ['Braking',      'baseBrake',     5,   50,  0.5],
+          ['Friction',     'baseFriction',  1,   20,  0.5],
+          ['Turn Rate',    'baseTurnRate',  0.2,  4,  0.1],
+        ]
+      },
+      {
+        title: 'Curves — Speed',
+        rows: [
+          ['Tiny mult',  'speedTiny',  0.1, 4.0, 0.05],
+          ['Giant mult', 'speedGiant', 0.1, 4.0, 0.05],
+        ]
+      },
+      {
+        title: 'Curves — Acceleration',
+        rows: [
+          ['Tiny mult',  'accelTiny',  0.1, 4.0, 0.05],
+          ['Giant mult', 'accelGiant', 0.1, 4.0, 0.05],
+        ]
+      },
+      {
+        title: 'Curves — Turn',
+        rows: [
+          ['Tiny mult',  'turnTiny',  0.1, 5.0, 0.05],
+          ['Giant mult', 'turnGiant', 0.1, 5.0, 0.05],
+        ]
+      },
+      {
+        title: 'Curves — HP',
+        rows: [
+          ['Tiny mult',  'hpTiny',  0.05, 2.0, 0.05],
+          ['Giant mult', 'hpGiant', 0.5,  5.0, 0.1 ],
+        ]
+      },
+      {
+        title: 'Curves — ATK',
+        rows: [
+          ['Tiny mult',  'atkTiny',  0.05, 2.0, 0.05],
+          ['Giant mult', 'atkGiant', 0.5,  5.0, 0.1 ],
+        ]
+      },
+    ];
+
+    function formatVal(v, step) {
+      if (step >= 1) return v.toFixed(0);
+      if (step >= 0.1) return v.toFixed(1);
+      return v.toFixed(2);
+    }
+
+    // userDefaults: starts as DEFAULTS, updated by "Update Default"
+    const userDefaults = { ...DEFAULTS };
+
+    // Build sliders
+    const sliderMap = {};  // key → { input, valEl, diffEl }
+
+    PANEL_SCHEMA.forEach(section => {
+      const sec = document.createElement('div');
+      sec.className = 'panel-section';
+
+      const title = document.createElement('div');
+      title.className = 'panel-section-title';
+      title.textContent = section.title;
+      sec.appendChild(title);
+
+      section.rows.forEach(([label, key, min, max, step]) => {
+        const row = document.createElement('div');
+        row.className = 'param-row';
+
+        const lbl = document.createElement('label');
+        lbl.textContent = label;
+
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min  = min; input.max = max; input.step = step;
+        input.value = P[key];
+
+        const valEl = document.createElement('span');
+        valEl.className = 'pval';
+        valEl.textContent = formatVal(P[key], step);
+
+        const diffEl = document.createElement('span');
+        diffEl.className = 'pdiff';
+
+        input.addEventListener('input', () => {
+          P[key] = parseFloat(input.value);
+          valEl.textContent = formatVal(P[key], step);
+          updateDiff(key, step);
+        });
+
+        row.appendChild(lbl);
+        row.appendChild(input);
+        row.appendChild(valEl);
+        row.appendChild(diffEl);
+        sec.appendChild(row);
+
+        sliderMap[key] = { input, valEl, diffEl };
+      });
+
+      panelEl.appendChild(sec);
+    });
+
+    function updateDiff(key, step) {
+      const { diffEl } = sliderMap[key];
+      const cur = P[key];
+      const def = userDefaults[key];
+      const eps = parseFloat(sliderMap[key].input.step) * 0.5;
+      if (Math.abs(cur - def) < eps) {
+        diffEl.textContent = '';
+      } else {
+        const up  = cur > def;
+        const abs = Math.abs(cur - def);
+        // Show absolute delta for small ranges, percent for large
+        const range = parseFloat(sliderMap[key].input.max) - parseFloat(sliderMap[key].input.min);
+        const label = range > 5
+          ? (up ? '▲' : '▼') + Math.abs((cur - def) / def * 100).toFixed(0) + '%'
+          : (up ? '▲' : '▼') + formatVal(abs, parseFloat(sliderMap[key].input.step));
+        diffEl.textContent = label;
+        diffEl.style.color = up ? '#ffaa44' : '#44ccff';
+      }
+    }
+
+    function refreshDiffMarkers() {
+      Object.keys(sliderMap).forEach(key => {
+        updateDiff(key, parseFloat(sliderMap[key].input.step));
+      });
+    }
+
+    function applyParams(src) {
+      Object.keys(DEFAULTS).forEach(key => {
+        if (src[key] !== undefined) {
+          const val = parseFloat(src[key]);
+          if (!isNaN(val)) {
+            P[key] = val;
+            if (sliderMap[key]) {
+              const step = parseFloat(sliderMap[key].input.step);
+              sliderMap[key].input.value = val;
+              sliderMap[key].valEl.textContent = formatVal(val, step);
+            }
+          }
+        }
+      });
+      refreshDiffMarkers();
+    }
+
+    // ── Footer: Update Default / Restore Default ─────────────
+    const footer = document.createElement('div');
+    footer.className = 'panel-footer';
+
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'panel-btn accent';
+    updateBtn.textContent = 'Update Default';
+    updateBtn.addEventListener('click', () => {
+      Object.assign(userDefaults, P);
+      refreshDiffMarkers();
+    });
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'panel-btn';
+    restoreBtn.textContent = 'Restore Default';
+    restoreBtn.addEventListener('click', () => {
+      applyParams(userDefaults);
+    });
+
+    footer.appendChild(updateBtn);
+    footer.appendChild(restoreBtn);
+    panelEl.appendChild(footer);
+
+    // Toggle
+    let panelOpen = false;
+    function setPanel(open) {
+      panelOpen = open;
+      panelEl.classList.toggle('hidden', !open);
+      toggleEl.textContent = open ? '✕ Params' : '⚙ Params';
+    }
+    toggleEl.addEventListener('click', () => setPanel(!panelOpen));
+    window.addEventListener('keydown', e => {
+      if (e.code === 'Tab') { e.preventDefault(); setPanel(!panelOpen); }
+    });
+
+    // ── Renderer ──────────────────────────────────────────────
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    function resize() {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+
+    // ── Scene ─────────────────────────────────────────────────
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x5a8fd0);
+    scene.fog = new THREE.FogExp2(0x5a8fd0, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 400);
+    resize();
+
+    scene.add(new THREE.AmbientLight(0xcce0ff, 0.5));
+    const sun = new THREE.DirectionalLight(0xfff5d0, 1.6);
+    sun.position.set(50, 100, 30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 300;
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -80;
+    sun.shadow.camera.right = sun.shadow.camera.top = 80;
+    scene.add(sun);
+
+    // ── Ground ────────────────────────────────────────────────
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshLambertMaterial({ color: 0x3d6b35 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // ── Oval track ────────────────────────────────────────────
+    const TRACK_HALF_LEN = 38;
+    const TRACK_RADIUS   = 22;
+    const ROAD_W         = 10;
+
+    function buildTrackMesh() {
+      const roadMat = new THREE.MeshLambertMaterial({ color: 0x303030 });
+      const straightGeo = new THREE.PlaneGeometry(ROAD_W, TRACK_HALF_LEN * 2);
+      [TRACK_RADIUS, -TRACK_RADIUS].forEach(x => {
+        const s = new THREE.Mesh(straightGeo, roadMat);
+        s.rotation.x = -Math.PI / 2;
+        s.position.set(x, 0.01, 0);
+        s.receiveShadow = true;
+        scene.add(s);
+      });
+      const innerR = TRACK_RADIUS - ROAD_W / 2;
+      const outerR = TRACK_RADIUS + ROAD_W / 2;
+      [1, -1].forEach(flip => {
+        const geo = new THREE.RingGeometry(innerR, outerR, 32, 1, 0, Math.PI);
+        const mesh = new THREE.Mesh(geo, roadMat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(0, 0.01, flip * TRACK_HALF_LEN);
+        if (flip > 0) mesh.rotation.z = Math.PI;
+        mesh.receiveShadow = true;
+        scene.add(mesh);
+      });
+      const dashMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+      for (let i = 0; i < 12; i++) {
+        const t = (i / 12) * TRACK_HALF_LEN * 2 - TRACK_HALF_LEN;
+        [-TRACK_RADIUS, TRACK_RADIUS].forEach(x => {
+          const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 2.5), dashMat);
+          dash.rotation.x = -Math.PI / 2;
+          dash.position.set(x, 0.02, t);
+          scene.add(dash);
+        });
+      }
+      const barrierMat = new THREE.MeshLambertMaterial({ color: 0xee2222 });
+      [-TRACK_RADIUS, TRACK_RADIUS].forEach(x => {
+        [-1, 1].forEach(side => {
+          const bar = new THREE.Mesh(
+            new THREE.BoxGeometry(0.5, 0.6, TRACK_HALF_LEN * 2), barrierMat
+          );
+          bar.position.set(x + side * (ROAD_W / 2 + 0.3), 0.3, 0);
+          bar.castShadow = true; bar.receiveShadow = true;
+          scene.add(bar);
+        });
+      });
+    }
+    buildTrackMesh();
+
+    // Finish line
+    const finish = new THREE.Mesh(
+      new THREE.PlaneGeometry(ROAD_W, 1.2),
+      new THREE.MeshLambertMaterial({ color: 0xffffff })
+    );
+    finish.rotation.x = -Math.PI / 2;
+    finish.position.set(TRACK_RADIUS, 0.03, -TRACK_HALF_LEN + 0.6);
+    scene.add(finish);
+    const cbSize = ROAD_W / 8;
+    for (let i = 0; i < 8; i += 2) {
+      const c = new THREE.Mesh(
+        new THREE.PlaneGeometry(cbSize, 1.2),
+        new THREE.MeshLambertMaterial({ color: 0x111111 })
+      );
+      c.rotation.x = -Math.PI / 2;
+      c.position.set(TRACK_RADIUS - ROAD_W / 2 + cbSize * i + cbSize / 2, 0.035, -TRACK_HALF_LEN + 0.6);
+      scene.add(c);
+    }
+
+    // ── Trees ─────────────────────────────────────────────────
+    let _seed = 77;
+    function rand() {
+      _seed = (_seed * 1664525 + 1013904223) & 0xffffffff;
+      return (_seed >>> 0) / 4294967296;
+    }
+    function addTree(x, z, h = 1) {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12*h, 0.18*h, 1.2*h, 6),
+        new THREE.MeshLambertMaterial({ color: 0x6b3f1e })
+      );
+      trunk.position.set(x, 0.6*h, z); trunk.castShadow = true; scene.add(trunk);
+      const foliage = new THREE.Mesh(
+        new THREE.ConeGeometry(0.9*h, 2.2*h, 7),
+        new THREE.MeshLambertMaterial({ color: 0x1b5e20 + Math.floor(rand()*0x103010) })
+      );
+      foliage.position.set(x, (1.2+1.1)*h, z); foliage.castShadow = true; scene.add(foliage);
+    }
+    for (let i = 0; i < 80; i++) {
+      const a = (i/80)*Math.PI*2, d = 48 + rand()*30;
+      addTree(Math.cos(a)*d, Math.sin(a)*d, 0.7 + rand()*0.8);
+    }
+    for (let i = 0; i < 20; i++) {
+      const a = rand()*Math.PI*2, d = rand()*12;
+      addTree(Math.cos(a)*d, Math.sin(a)*d, 0.6 + rand()*0.5);
+    }
+
+    // ── Car ───────────────────────────────────────────────────
+    const carGroup = new THREE.Group();
+    scene.add(carGroup);
+
+    const matBody  = new THREE.MeshLambertMaterial({ color: 0x1565c0 });
+    const matCabin = new THREE.MeshLambertMaterial({ color: 0x1976d2 });
+    const matWheel = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const matRim   = new THREE.MeshLambertMaterial({ color: 0xbbbbbb });
+    const matGlass = new THREE.MeshLambertMaterial({ color: 0x88aaff, transparent: true, opacity: 0.6 });
+    const matLight = new THREE.MeshLambertMaterial({ color: 0xffffcc, emissive: 0xffff00 });
+
+    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 4.0), matBody);
+    bodyMesh.position.y = 0.5; bodyMesh.castShadow = true; carGroup.add(bodyMesh);
+
+    const spoilerBase = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 0.5), matBody);
+    spoilerBase.position.set(0, 1.05, -2.1); carGroup.add(spoilerBase);
+    const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.35, 0.08), matBody);
+    spoilerWing.position.set(0, 1.28, -2.1); spoilerWing.castShadow = true; carGroup.add(spoilerWing);
+    [-0.75, 0.75].forEach(x => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.07), matBody);
+      post.position.set(x, 1.16, -2.1); carGroup.add(post);
+    });
+
+    const cabinMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 1.9), matCabin);
+    cabinMesh.position.set(0, 0.96, -0.25); cabinMesh.castShadow = true; carGroup.add(cabinMesh);
+
+    [
+      { pos:[0, 0.96, 0.76],    rot:[0,0,0],           w:1.35, h:0.35 },
+      { pos:[0, 0.96, -1.21],   rot:[0,0,0],           w:1.35, h:0.32 },
+      { pos:[ 0.71,0.96,-0.25], rot:[0,Math.PI/2,0],   w:1.7,  h:0.3  },
+      { pos:[-0.71,0.96,-0.25], rot:[0,Math.PI/2,0],   w:1.7,  h:0.3  },
+    ].forEach(({ pos, rot, w, h }) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), matGlass);
+      m.position.set(...pos); m.rotation.set(...rot); carGroup.add(m);
+    });
+
+    [-0.55, 0.55].forEach(x => {
+      const l = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.05), matLight);
+      l.position.set(x, 0.55, 2.03); carGroup.add(l);
+    });
+
+    const wheels = [];
+    [[-1.0,0.3,1.35],[1.0,0.3,1.35],[-1.0,0.3,-1.35],[1.0,0.3,-1.35]].forEach(pos => {
+      const g = new THREE.Group();
+      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.24,18), matWheel);
+      tire.rotation.z = Math.PI/2; tire.castShadow = true; g.add(tire);
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.25,8), matRim);
+      rim.rotation.z = Math.PI/2; g.add(rim);
+      for (let s = 0; s < 5; s++) {
+        const spoke = new THREE.Mesh(
+          new THREE.BoxGeometry(0.04,0.3,0.04),
+          new THREE.MeshLambertMaterial({ color: 0x888888 })
+        );
+        spoke.rotation.z = (s/5)*Math.PI*2; g.add(spoke);
+      }
+      g.position.set(...pos); carGroup.add(g); wheels.push(g);
+    });
+
+    carGroup.position.set(TRACK_RADIUS, 0, -TRACK_HALF_LEN + 3);
+    let carAngle = 0;
+
+    // ── Size gimmick state ────────────────────────────────────
+    let sizeScale     = 1.0;   // logical size
+    let sizeScaleDisp = 1.0;   // visually smoothed
+
+    function sizeT() {
+      return (sizeScale - P.sizeMin) / (P.sizeMax - P.sizeMin);
+    }
+
+    // Linear interpolation from tiny→giant using params
+    function attrLerp(tiny, giant, t) { return tiny + (giant - tiny) * t; }
+
+    // Normalization: ensure multiplier = 1.0 at sizeScale = 1.0
+    function baseT() { return (1.0 - P.sizeMin) / (P.sizeMax - P.sizeMin); }
+
+    function currentStats() {
+      const t  = sizeT();
+      const bt = baseT();
+      return {
+        maxSpeed : P.baseMaxSpeed * (attrLerp(P.speedTiny, P.speedGiant, t) / attrLerp(P.speedTiny, P.speedGiant, bt)),
+        accel    : P.baseAccel    * (attrLerp(P.accelTiny, P.accelGiant, t) / attrLerp(P.accelTiny, P.accelGiant, bt)),
+        brake    : P.baseBrake,
+        friction : P.baseFriction,
+        turnRate : P.baseTurnRate * (attrLerp(P.turnTiny,  P.turnGiant,  t) / attrLerp(P.turnTiny,  P.turnGiant,  bt)),
+        hp       : attrLerp(P.hpTiny,  P.hpGiant,  t),
+        atk      : attrLerp(P.atkTiny, P.atkGiant, t),
+      };
+    }
+
+    function sizeName(s) {
+      if (s < 0.55) return 'TINY';
+      if (s < 0.75) return 'SMALL';
+      if (s < 1.25) return 'NORMAL';
+      if (s < 1.75) return 'BIG';
+      if (s < 2.2)  return 'HUGE';
+      return 'TITAN';
+    }
+
+    function sizeColor(t) {
+      const r = Math.round(t * 255);
+      const g = Math.round((1 - Math.abs(t - 0.5) * 2) * 200 + 55);
+      const b = Math.round((1 - t) * 255);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // ── HUD refs ──────────────────────────────────────────────
+    const barSize   = document.getElementById('bar-size');
+    const barHP     = document.getElementById('bar-hp');
+    const barATK    = document.getElementById('bar-atk');
+    const barTurn   = document.getElementById('bar-turn');
+    const valSizeEl = document.getElementById('val-size');
+    const valHPEl   = document.getElementById('val-hp');
+    const valATKEl  = document.getElementById('val-atk');
+    const valTurnEl = document.getElementById('val-turn');
+    const sizeLabelEl = document.getElementById('size-label');
+    const spdEl     = document.getElementById('spd');
+
+    function updateHUD() {
+      const t  = sizeT();
+      const bt = baseT();
+      const s  = currentStats();
+
+      // size bar: position in [sizeMin, sizeMax] range
+      barSize.style.width = `${Math.max(2, t * 100)}%`;
+      barSize.style.background = sizeColor(t);
+
+      // HP/ATK/Turn relative to base
+      const hpBase  = attrLerp(P.hpTiny,  P.hpGiant,  bt);
+      const atkBase = attrLerp(P.atkTiny, P.atkGiant, bt);
+      barHP.style.width   = `${Math.min(s.hp  / hpBase  * 38, 100)}%`;
+      barATK.style.width  = `${Math.min(s.atk / atkBase * 38, 100)}%`;
+      barTurn.style.width = `${Math.min((s.turnRate / P.baseTurnRate) * 38, 100)}%`;
+
+      barHP.style.background   = s.hp  > hpBase  * 1.5 ? '#ff6644' : s.hp  < hpBase  * 0.7 ? '#44ccff' : '#66dd88';
+      barATK.style.background  = s.atk > atkBase * 1.5 ? '#ff6644' : '#ff9944';
+      barTurn.style.background = s.turnRate > P.baseTurnRate ? '#cc88ff' : '#9955ff';
+
+      valSizeEl.textContent = sizeScaleDisp.toFixed(2) + '×';
+      valHPEl.textContent   = Math.round(s.hp  / hpBase  * 100);
+      valATKEl.textContent  = Math.round(s.atk / atkBase * 100);
+      valTurnEl.textContent = Math.round((s.turnRate / P.baseTurnRate) * 100);
+
+      const name = sizeName(sizeScale);
+      sizeLabelEl.textContent = name;
+      sizeLabelEl.style.color = sizeColor(t);
+      sizeLabelEl.style.textShadow = `0 0 16px ${sizeColor(t)}`;
+    }
+
+    // ── Lap tracking ──────────────────────────────────────────
+    let lapCount = 0, bestLap = Infinity, lapStartTime = 0;
+    let lapActive = false, crossedFront = false;
+
+    function checkFinishLine(pos) {
+      const near = Math.abs(pos.x - TRACK_RADIUS) < ROAD_W/2+0.5
+                && Math.abs(pos.z - (-TRACK_HALF_LEN)) < 2.0;
+      if (near && !crossedFront) {
+        crossedFront = true;
+        const now = performance.now() / 1000;
+        if (lapActive) {
+          const lt = now - lapStartTime;
+          lapCount++;
+          if (lt < bestLap) bestLap = lt;
+          document.getElementById('laps').textContent = lapCount;
+          document.getElementById('best').textContent = fmtTime(bestLap);
+          showMsg(`Lap ${lapCount}  —  ${fmtTime(lt)}`);
+        }
+        lapStartTime = now; lapActive = true;
+      } else if (!near) { crossedFront = false; }
+    }
+
+    function fmtTime(s) {
+      return `${Math.floor(s/60)}:${(s%60).toFixed(2).padStart(5,'0')}`;
+    }
+
+    let msgTimer = null;
+    const msgEl = document.getElementById('msg');
+    function showMsg(text) {
+      msgEl.textContent = text; msgEl.style.display = 'block';
+      if (msgTimer) clearTimeout(msgTimer);
+      msgTimer = setTimeout(() => { msgEl.style.display = 'none'; }, 2200);
+    }
+
+    // ── Input ─────────────────────────────────────────────────
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      if (e.code === 'Tab') return;
+      keys[e.code] = true;
+      e.preventDefault();
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    // ── Physics state ─────────────────────────────────────────
+    let speed = 0;
+    const smoothCamPos = new THREE.Vector3(TRACK_RADIUS, 4, -TRACK_HALF_LEN + 3 - 10);
+    const camLookAt    = new THREE.Vector3();
+    const clock        = new THREE.Clock();
+
+    // ── Update ────────────────────────────────────────────────
+    function update(dt) {
+      // Size input
+      if (keys['KeyE']) sizeScale = Math.min(sizeScale + P.sizeRate * dt, P.sizeMax);
+      if (keys['KeyQ']) sizeScale = Math.max(sizeScale - P.sizeRate * dt, P.sizeMin);
+
+      // Clamp in case sizeMin/sizeMax slider moved
+      sizeScale = Math.max(P.sizeMin, Math.min(P.sizeMax, sizeScale));
+
+      // Visual lerp
+      sizeScaleDisp += (sizeScale - sizeScaleDisp) * Math.min(1, P.sizeLerp * dt);
+      carGroup.scale.setScalar(sizeScaleDisp);
+      carGroup.position.y = 0;
+
+      // Stats
+      const s = currentStats();
+
+      // Drive
+      const fwd   = keys['KeyW'] || keys['ArrowUp'];
+      const back  = keys['KeyS'] || keys['ArrowDown'];
+      const left  = keys['KeyA'] || keys['ArrowLeft'];
+      const right = keys['KeyD'] || keys['ArrowRight'];
+
+      if (fwd)       speed = Math.min(speed + s.accel * dt,   s.maxSpeed);
+      else if (back) speed = Math.max(speed - s.brake * dt,  -s.maxSpeed * 0.4);
+      else {
+        const f = s.friction * dt;
+        speed = Math.abs(speed) < f ? 0 : speed - Math.sign(speed) * f;
+      }
+
+      const speedFrac = Math.abs(speed) / s.maxSpeed;
+      const turn = s.turnRate * dt * speedFrac * Math.sign(speed || 1);
+      if (left)  carAngle += turn;
+      if (right) carAngle -= turn;
+
+      carGroup.position.x += Math.sin(carAngle) * speed * dt;
+      carGroup.position.z += Math.cos(carAngle) * speed * dt;
+      carGroup.rotation.y = carAngle;
+
+      const wheelR = 0.3 * sizeScaleDisp;
+      wheels.forEach(w => { w.rotation.x += (speed * dt) / wheelR; });
+
+      // Camera
+      const camDist = 11 * Math.max(0.7, sizeScaleDisp * 0.8);
+      const camH    = 4.5 * Math.max(0.7, sizeScaleDisp * 0.7);
+      smoothCamPos.lerp(new THREE.Vector3(
+        carGroup.position.x - Math.sin(carAngle) * camDist,
+        camH,
+        carGroup.position.z - Math.cos(carAngle) * camDist
+      ), 7 * dt);
+      camera.position.copy(smoothCamPos);
+      camLookAt.set(
+        carGroup.position.x + Math.sin(carAngle) * 4,
+        1.2 * sizeScaleDisp,
+        carGroup.position.z + Math.cos(carAngle) * 4
+      );
+      camera.lookAt(camLookAt);
+
+      sun.position.set(carGroup.position.x + 50, 100, carGroup.position.z + 30);
+      sun.target.position.copy(carGroup.position);
+      sun.target.updateMatrixWorld();
+
+      spdEl.textContent = Math.abs(speed * 3.6).toFixed(0);
+      checkFinishLine(carGroup.position);
+      updateHUD();
+    }
+
+    // ── Render loop ───────────────────────────────────────────
+    function loop() {
+      requestAnimationFrame(loop);
+      update(Math.min(clock.getDelta(), 0.05));
+      renderer.render(scene, camera);
+    }
+    loop();
+  </script>
+</body>
+</html>
