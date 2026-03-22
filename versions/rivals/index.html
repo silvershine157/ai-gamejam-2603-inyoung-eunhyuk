@@ -933,16 +933,23 @@
     carGroup.quaternion.copy(START_QUAT);
 
     // ── Rival AI cars ─────────────────────────────────────────
-    const AI_LOOKAHEAD = 0.025;
-    const AI_TURN_RATE = 1.8;
-    const AI_ACCEL     = 14;
+    const AI_LOOKAHEAD        = 0.025;
+    const AI_TURN_RATE        = 1.8;
+    const CAR_CAR_RESTITUTION = 0.35;
 
     const _aiFwd      = new THREE.Vector3();
     const _aiUp       = new THREE.Vector3();
     const _aiTarget   = new THREE.Vector3();
     const _aiSteering = new THREE.Quaternion();
+    const _ccFwdA     = new THREE.Vector3();
+    const _ccFwdB     = new THREE.Vector3();
 
-    function makeRivalCar(bodyColor, cabinColor, startT, maxSpeed, laneOffset = 0) {
+    function makeRivalCar(bodyColor, cabinColor, startT, sizeScale, laneOffset = 0) {
+      // Stats scale with size exactly like the player's
+      const sT       = (sizeScale - P.sizeMin) / (P.sizeMax - P.sizeMin);
+      const bt       = baseT();
+      const maxSpeed = P.baseMaxSpeed * attrLerp(P.speedTiny, P.speedGiant, sT) / attrLerp(P.speedTiny, P.speedGiant, bt);
+      const accel    = P.baseAccel    * attrLerp(P.accelTiny, P.accelGiant, sT) / attrLerp(P.accelTiny, P.accelGiant, bt);
       const group = new THREE.Group();
       const matB = new THREE.MeshLambertMaterial({ color: bodyColor });
       const matC = new THREE.MeshLambertMaterial({ color: cabinColor });
@@ -962,24 +969,67 @@
         rim.rotation.z = Math.PI / 2; rim.position.set(px, py, pz); group.add(rim);
       });
 
+      group.scale.setScalar(sizeScale);
+
       const frame = road.getFrameAt(startT);
       group.position.copy(frame.point).addScaledVector(frame.right, laneOffset).setY(0);
       setQuaternionFromForwardUp(group.quaternion, frame.tangent, WORLD_UP);
       scene.add(group);
 
       return {
-        group, maxSpeed,
+        group, sizeScale, maxSpeed, accel,
         speed: 0,
         impactVelocity: new THREE.Vector3(),
-        radius: BASE_CAR_RADIUS,
+        radius: BASE_CAR_RADIUS * sizeScale,
         trackT: startT,
         lapCount: 0,
         prevFinishDot: null,
       };
     }
 
+    function resolveCarCarCollision(csA, csB) {
+      const dx = csA.group.position.x - csB.group.position.x;
+      const dz = csA.group.position.z - csB.group.position.z;
+      const distSq = dx * dx + dz * dz;
+      const minDist = csA.radius + csB.radius;
+      if (distSq >= minDist * minDist) return;
+
+      const dist = Math.sqrt(distSq);
+      const overlap = minDist - dist;
+      const nx = dist > 1e-5 ? dx / dist : 1;
+      const nz = dist > 1e-5 ? dz / dist : 0;
+
+      // Mass proportional to area (size²) — heavier car yields less
+      const massA = csA.sizeScale * csA.sizeScale;
+      const massB = csB.sizeScale * csB.sizeScale;
+      const totalMass = massA + massB;
+
+      // Push positions apart
+      csA.group.position.x += nx * overlap * massB / totalMass;
+      csA.group.position.z += nz * overlap * massB / totalMass;
+      csB.group.position.x -= nx * overlap * massA / totalMass;
+      csB.group.position.z -= nz * overlap * massA / totalMass;
+
+      // Velocity impulse (elastic collision along contact normal)
+      getForward(csA.group.quaternion, _ccFwdA);
+      getForward(csB.group.quaternion, _ccFwdB);
+      const vAx = _ccFwdA.x * csA.speed + csA.impactVelocity.x;
+      const vAz = _ccFwdA.z * csA.speed + csA.impactVelocity.z;
+      const vBx = _ccFwdB.x * csB.speed + csB.impactVelocity.x;
+      const vBz = _ccFwdB.z * csB.speed + csB.impactVelocity.z;
+
+      const relVn = (vAx - vBx) * nx + (vAz - vBz) * nz;
+      if (relVn >= 0) return; // already separating
+
+      const j = -(1 + CAR_CAR_RESTITUTION) * relVn / (1 / massA + 1 / massB);
+      csA.impactVelocity.x += (j / massA) * nx;
+      csA.impactVelocity.z += (j / massA) * nz;
+      csB.impactVelocity.x -= (j / massB) * nx;
+      csB.impactVelocity.z -= (j / massB) * nz;
+    }
+
     function updateRival(rival, dt) {
-      rival.speed = Math.min(rival.speed + AI_ACCEL * dt, rival.maxSpeed);
+      rival.speed = Math.min(rival.speed + rival.accel * dt, rival.maxSpeed);
 
       const proj = road.projectPoint(rival.group.position);
       rival.trackT = proj.t;
@@ -1277,9 +1327,9 @@
 
     // Rivals initialized here (after BASE_CAR_RADIUS)
     const rivals = [
-      makeRivalCar(0xc0392b, 0xe74c3c, 0.055, P.baseMaxSpeed * 0.82,  2.5),
-      makeRivalCar(0x27ae60, 0x2ecc71, 0.055, P.baseMaxSpeed * 0.90, -2.5),
-      makeRivalCar(0xe67e22, 0xf39c12, 0.08,  P.baseMaxSpeed * 0.86,  0.0),
+      makeRivalCar(0xc0392b, 0xe74c3c, 0.055, 1.8,   2.5),  // big red — slow, heavy
+      makeRivalCar(0x27ae60, 0x2ecc71, 0.055, 0.65, -2.5),  // small green — fast, light
+      makeRivalCar(0xe67e22, 0xf39c12, 0.08,  1.1,   0.0),  // medium orange
     ];
 
     // ── v6 Physics state ──────────────────────────────────────
@@ -1314,7 +1364,11 @@
       speed: 0,
       impactVelocity,   // same reference as the module-level vector
       radius: BASE_CAR_RADIUS,
+      sizeScale: 1.0,
     };
+
+    // All cars (player + rivals) for car-to-car collision
+    const allCars = [_playerAdapter, ...rivals];
 
     function getForward(quat, out) {
       return out.copy(LOCAL_FORWARD).applyQuaternion(quat).normalize();
@@ -1587,6 +1641,7 @@
       previousCarPos.copy(carGroup.position);
       _playerAdapter.speed = speed;
       _playerAdapter.radius = currentCarRadius;
+      _playerAdapter.sizeScale = sizeScaleDisp;
       advanceCarWithCollisions(dt, _playerAdapter);
       speed = _playerAdapter.speed;
 
@@ -1638,6 +1693,11 @@
 
       // ── Rivals ────────────────────────────────────────────
       for (const rival of rivals) updateRival(rival, dt);
+
+      // ── Car-to-car collisions ─────────────────────────────
+      for (let i = 0; i < allCars.length; i++)
+        for (let j = i + 1; j < allCars.length; j++)
+          resolveCarCarCollision(allCars[i], allCars[j]);
 
       // ── Rank display ──────────────────────────────────────
       const playerProg = lapCount + road.projectPoint(carGroup.position).t;
