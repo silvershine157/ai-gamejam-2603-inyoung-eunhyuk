@@ -1,6 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"><head>
   <meta charset="UTF-8">
   <title>morph — Size Gimmick POC</title>
   <style>
@@ -188,29 +186,29 @@
     <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
     <div class="bar-row">
       <span class="label" style="width:42px">SIZE</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-size" style="width:38%;background:#aad4ff"></div></div>
-      <span class="val" id="val-size">1.00×</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-size" style="width: 2%; background: rgb(0, 55, 255);"></div></div>
+      <span class="val" id="val-size">0.40×</span>
     </div>
     <div class="bar-row">
       <span class="label" style="width:42px">HP</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width:38%;background:#66dd88"></div></div>
-      <span class="val" id="val-hp">100</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width: 10.64%; background: rgb(68, 204, 255);"></div></div>
+      <span class="val" id="val-hp">28</span>
     </div>
     <div class="bar-row">
       <span class="label" style="width:42px">ATK</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-atk" style="width:38%;background:#ff9944"></div></div>
-      <span class="val" id="val-atk">100</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-atk" style="width: 7.6%; background: rgb(255, 153, 68);"></div></div>
+      <span class="val" id="val-atk">20</span>
     </div>
     <div class="bar-row">
       <span class="label" style="width:42px">TURN</span>
-      <div class="bar-bg"><div class="bar-fill" id="bar-turn" style="width:38%;background:#cc88ff"></div></div>
-      <span class="val" id="val-turn">100</span>
+      <div class="bar-bg"><div class="bar-fill" id="bar-turn" style="width: 50%; background: rgb(204, 136, 255);"></div></div>
+      <span class="val" id="val-turn">132</span>
     </div>
-    <div><span class="label">SCORE  </span><span class="val" id="score">0</span><span class="label" id="score-total"></span></div>
+    <div><span class="label">SCORE  </span><span class="val" id="score">0</span><span class="label" id="score-total"> / 19</span></div>
     <div id="ammo-row">
       <span class="label" style="width:42px;flex-shrink:0">AMMO</span>
-      <div id="ammo-bullets"></div>
-      <div id="ammo-charge-bg"><div id="ammo-charge-fill"></div></div>
+      <div id="ammo-bullets"><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet" style="display: block;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span><span class="bullet empty" style="display: none;"></span></div>
+      <div id="ammo-charge-bg"><div id="ammo-charge-fill" style="width: 0%;"></div></div>
     </div>
     <hr style="border-color:rgba(255,255,255,0.1);margin:4px 0">
     <div><span class="label">X/Z   </span>grow / shrink</div>
@@ -220,16 +218,16 @@
   </div>
 
   <div id="size-indicator">
-    <span class="size-val" id="size-label">NORMAL</span>
+    <span class="size-val" id="size-label" style="color: rgb(0, 55, 255); text-shadow: rgb(0, 55, 255) 0px 0px 16px;">TINY</span>
   </div>
 
   <div id="msg"></div>
 
   <!-- Panel toggle button -->
-  <button id="panel-toggle">⚙ Params</button>
+  <button id="panel-toggle">✕ Params</button>
 
   <!-- Control panel (built by JS) -->
-  <div id="panel" class="hidden"></div>
+  <div id="panel" class=""><div class="panel-section"><div class="panel-section-title">Size System</div><div class="param-row"><label>Size Rate</label><input type="range" min="0.2" max="5" step="0.05"><span class="pval">1.50</span><span class="pdiff"></span></div><div class="param-row"><label>Size Min</label><input type="range" min="0.1" max="1" step="0.05"><span class="pval">0.40</span><span class="pdiff"></span></div><div class="param-row"><label>Size Max</label><input type="range" min="1" max="4" step="0.1"><span class="pval">2.5</span><span class="pdiff"></span></div><div class="param-row"><label>Visual Lerp</label><input type="range" min="1" max="20" step="0.5"><span class="pval">8.0</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Driving Base (at 1×)</div><div class="param-row"><label>Max Speed</label><input type="range" min="5" max="60" step="1"><span class="pval">28</span><span class="pdiff"></span></div><div class="param-row"><label>Acceleration</label><input type="range" min="2" max="30" step="0.5"><span class="pval">14.0</span><span class="pdiff"></span></div><div class="param-row"><label>Braking</label><input type="range" min="5" max="50" step="0.5"><span class="pval">22.0</span><span class="pdiff"></span></div><div class="param-row"><label>Friction</label><input type="range" min="1" max="20" step="0.5"><span class="pval">6.0</span><span class="pdiff"></span></div><div class="param-row"><label>Turn Rate</label><input type="range" min="0.2" max="4" step="0.1"><span class="pval">1.8</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — Speed</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">1.50</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">0.70</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — Acceleration</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">1.50</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.1" max="4" step="0.05"><span class="pval">0.60</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — Turn</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.1" max="5" step="0.05"><span class="pval">2.50</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.1" max="5" step="0.05"><span class="pval">0.40</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — HP</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.05" max="2" step="0.05"><span class="pval">0.30</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.5" max="5" step="0.1"><span class="pval">3.0</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Curves — ATK</div><div class="param-row"><label>Tiny mult</label><input type="range" min="0.05" max="2" step="0.05"><span class="pval">0.20</span><span class="pdiff"></span></div><div class="param-row"><label>Giant mult</label><input type="range" min="0.5" max="5" step="0.1"><span class="pval">3.0</span><span class="pdiff"></span></div></div><div class="panel-section"><div class="panel-section-title">Cannon</div><div class="param-row"><label>Proj Speed</label><input type="range" min="10" max="120" step="1"><span class="pval">50</span><span class="pdiff"></span></div><div class="param-row"><label>Proj Radius</label><input type="range" min="0.05" max="1" step="0.01"><span class="pval">0.22</span><span class="pdiff"></span></div><div class="param-row"><label>Proj Lifetime</label><input type="range" min="1" max="12" step="0.5"><span class="pval">5.0</span><span class="pdiff"></span></div><div class="param-row"><label>Ammo Max</label><input type="range" min="1" max="10" step="1"><span class="pval">5</span><span class="pdiff"></span></div><div class="param-row"><label>Recharge (s)</label><input type="range" min="0.5" max="10" step="0.5"><span class="pval">1.0</span><span class="pdiff" style="color: rgb(68, 204, 255);">▼67%</span></div></div><div class="panel-footer"><button class="panel-btn">Restore Default</button><button class="panel-btn accent">Save to HTML</button></div></div>
 
   <script type="importmap">
   { "imports": { "three": "https://unpkg.com/three@0.163.0/build/three.module.js" } }
@@ -240,36 +238,45 @@
 
     // ── Tunable parameters ────────────────────────────────────
     const DEFAULTS = {
-      // Size system
-      sizeRate  : 1.5,   // units/sec while key held
-      sizeMin   : 0.4,
-      sizeMax   : 2.5,
-      sizeLerp  : 8,     // visual lerp speed (higher = snappier)
-
-      // Driving base (at size 1.0×)
-      baseMaxSpeed : 28,
-      baseAccel    : 14,
-      baseBrake    : 22,
-      baseFriction : 6,
-      baseTurnRate : 1.8,
-
-      // Attribute curves — value at tiny (sizeMin) and at giant (sizeMax)
-      speedTiny : 1.5,  speedGiant : 0.7,
-      accelTiny : 1.5,  accelGiant : 0.6,
-      turnTiny  : 2.5,  turnGiant  : 0.4,
-      hpTiny    : 0.3,  hpGiant    : 3.0,
-      atkTiny   : 0.2,  atkGiant   : 3.0,
-
-      // Cannon
-      projSpeed    : 50,
-      projRadius   : 0.22,
-      projLifetime : 5.0,
-      ammoMax      : 5,
-      ammoRecharge : 3.0,   // seconds per bullet
+      sizeRate      : 1.50,
+      sizeMin       : 0.40,
+      sizeMax       : 2.5,
+      sizeLerp      : 8.0,
+      baseMaxSpeed  : 28,
+      baseAccel     : 14.0,
+      baseBrake     : 22.0,
+      baseFriction  : 6.0,
+      baseTurnRate  : 1.8,
+      speedTiny     : 1.50,
+      speedGiant    : 0.70,
+      accelTiny     : 1.50,
+      accelGiant    : 0.60,
+      turnTiny      : 2.50,
+      turnGiant     : 0.40,
+      hpTiny        : 0.30,
+      hpGiant       : 3.0,
+      atkTiny       : 0.20,
+      atkGiant      : 3.0,
+      projSpeed     : 50,
+      projRadius    : 0.22,
+      projLifetime  : 5.0,
+      ammoMax       : 5,
+      ammoRecharge  : 1.0,
     };
 
-    // Live params object — modified by control panel sliders
+    // Live params object — starts from DEFAULTS, overwritten by params.json
     const P = { ...DEFAULTS };
+
+    // Load params.json (top-level await — requires type="module", which we have)
+    try {
+      const res = await fetch('./params.json');
+      if (res.ok) {
+        const saved = await res.json();
+        Object.keys(DEFAULTS).forEach(k => {
+          if (saved[k] !== undefined) P[k] = parseFloat(saved[k]);
+        });
+      }
+    } catch (_) { /* server not running or file missing — use DEFAULTS */ }
 
     // ── Control panel builder ─────────────────────────────────
     const panelEl  = document.getElementById('panel');
@@ -349,8 +356,9 @@
       return v.toFixed(2);
     }
 
-    // userDefaults: starts as DEFAULTS, updated by "Update Default"
-    const userDefaults = { ...DEFAULTS };
+    // userDefaults: mirrors whatever was in params.json at load time
+    // Used by "Restore Default" and diff markers as the baseline
+    const userDefaults = { ...P };
 
     // Build sliders
     const sliderMap = {};  // key → { input, valEl, diffEl }
@@ -457,30 +465,16 @@
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'panel-btn accent';
-    saveBtn.textContent = 'Save to HTML';
+    saveBtn.textContent = 'Save to JSON';
     saveBtn.addEventListener('click', () => {
-      // Serialize current P into a DEFAULTS literal and bake into the HTML source
-      const lines = Object.keys(DEFAULTS).map(key => {
-        const step = sliderMap[key] ? parseFloat(sliderMap[key].input.step) : 0.01;
-        return `      ${key.padEnd(14)}: ${formatVal(P[key], step)},`;
-      });
-      const newDefaults = `    const DEFAULTS = {\n${lines.join('\n')}\n    };`;
-
-      const src = document.documentElement.outerHTML;
-      // Replace the DEFAULTS block between its open/close markers
-      const updated = src.replace(
-        /[ \t]*const DEFAULTS = \{[\s\S]*?\};/,
-        newDefaults
-      );
-
-      const blob = new Blob([updated], { type: 'text/html' });
+      const blob = new Blob([JSON.stringify(P, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'index.html';
+      a.download = 'params.json';
       a.click();
       URL.revokeObjectURL(a.href);
 
-      // Also update in-memory userDefaults so diff markers reset
+      // Reset diff markers — saved state is now the new baseline
       Object.assign(userDefaults, P);
       refreshDiffMarkers();
     });
@@ -1175,5 +1169,6 @@
     }
     loop();
   </script>
-</body>
-</html>
+
+
+<canvas data-engine="three.js r163" width="2496" height="1402" style="display: block; width: 1248px; height: 701px;"></canvas></body></html>
