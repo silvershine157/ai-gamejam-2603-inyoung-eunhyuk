@@ -1248,6 +1248,45 @@
       bgmSnare.gain.setTargetAtTime( 0.12,             now, tau);
     }
 
+    // ── Collision SFX ──────────────────────────────────────────
+    let _collisionCooldown = 0;
+
+    function playCollision(impactSpeed) {
+      const now = AC.currentTime;
+      if (now < _collisionCooldown) return;
+      const vel = Math.min(impactSpeed / 20, 1.0);  // normalize 0..1
+      if (vel < 0.05) return;                        // ignore tiny grazes
+      _collisionCooldown = now + 0.12;
+
+      // Layer 1: deep thud — low sine, heavy pitch drop
+      const g1 = AC.createGain();
+      g1.gain.setValueAtTime(0.9 * vel, now);
+      g1.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      g1.connect(comp);
+      const o1 = AC.createOscillator(); o1.type = 'sine';
+      o1.frequency.setValueAtTime(120 + vel * 60, now);
+      o1.frequency.exponentialRampToValueAtTime(28, now + 0.4);
+      o1.connect(g1); o1.start(now); o1.stop(now + 0.55);
+
+      // Layer 2: metal crunch — bandpass noise burst
+      const ns = AC.createBufferSource(); ns.buffer = _noiseBuf;
+      const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 300; bp.Q.value = 0.4;
+      const g2 = AC.createGain();
+      g2.gain.setValueAtTime(0.7 * vel, now);
+      g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      ns.connect(bp); bp.connect(g2); g2.connect(comp);
+      ns.start(now); ns.stop(now + 0.3);
+
+      // Layer 3: sub click — very low sine blip for body
+      const g3 = AC.createGain();
+      g3.gain.setValueAtTime(0.6 * vel, now);
+      g3.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      g3.connect(comp);
+      const o3 = AC.createOscillator(); o3.type = 'sine';
+      o3.frequency.setValueAtTime(55, now);
+      o3.connect(g3); o3.start(now); o3.stop(now + 0.1);
+    }
+
     // ═══════════════════════════════════════════════════════════
 
     function fireCannon() {
@@ -1525,6 +1564,7 @@
     function applyImpactResponse(velocity, hit) {
       const normalSpeed = velocity.dot(hit.normal);
       if (normalSpeed >= 0) return;
+      playCollision(-normalSpeed);
       speed *= hit.speedRetention;
       impactVelocity.addScaledVector(hit.normal, -normalSpeed * (1 + hit.restitution));
       const impactSpeed = impactVelocity.length();
