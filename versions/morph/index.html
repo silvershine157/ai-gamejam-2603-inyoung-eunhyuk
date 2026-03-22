@@ -444,17 +444,9 @@
       refreshDiffMarkers();
     }
 
-    // ── Footer: Update Default / Restore Default ─────────────
+    // ── Footer ────────────────────────────────────────────────
     const footer = document.createElement('div');
     footer.className = 'panel-footer';
-
-    const updateBtn = document.createElement('button');
-    updateBtn.className = 'panel-btn accent';
-    updateBtn.textContent = 'Update Default';
-    updateBtn.addEventListener('click', () => {
-      Object.assign(userDefaults, P);
-      refreshDiffMarkers();
-    });
 
     const restoreBtn = document.createElement('button');
     restoreBtn.className = 'panel-btn';
@@ -463,8 +455,38 @@
       applyParams(userDefaults);
     });
 
-    footer.appendChild(updateBtn);
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'panel-btn accent';
+    saveBtn.textContent = 'Save to HTML';
+    saveBtn.addEventListener('click', () => {
+      // Serialize current P into a DEFAULTS literal and bake into the HTML source
+      const lines = Object.keys(DEFAULTS).map(key => {
+        const step = sliderMap[key] ? parseFloat(sliderMap[key].input.step) : 0.01;
+        return `      ${key.padEnd(14)}: ${formatVal(P[key], step)},`;
+      });
+      const newDefaults = `    const DEFAULTS = {\n${lines.join('\n')}\n    };`;
+
+      const src = document.documentElement.outerHTML;
+      // Replace the DEFAULTS block between its open/close markers
+      const updated = src.replace(
+        /[ \t]*const DEFAULTS = \{[\s\S]*?\};/,
+        newDefaults
+      );
+
+      const blob = new Blob([updated], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'index.html';
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      // Also update in-memory userDefaults so diff markers reset
+      Object.assign(userDefaults, P);
+      refreshDiffMarkers();
+    });
+
     footer.appendChild(restoreBtn);
+    footer.appendChild(saveBtn);
     panelEl.appendChild(footer);
 
     // Toggle
